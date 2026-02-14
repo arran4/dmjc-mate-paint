@@ -504,19 +504,19 @@ static void attributes_dlg_display_size(guint type, gboolean from_drawable)
 		case 0: /* inches */
 				/* Fall through */
 		case 1: /* centimeters */
-			sprintf(wtext, "%.02f", dw );
-			sprintf(htext, "%.02f", dh );
+			g_snprintf(wtext, sizeof(wtext), "%.02f", dw );
+			g_snprintf(htext, sizeof(htext), "%.02f", dh );
 			break;
 		default: /* pixels */
-			sprintf(wtext, "%d", (gint)dw );
-			sprintf(htext, "%d", (gint)dh );
+			g_snprintf(wtext, sizeof(wtext), "%d", (gint)dw );
+			g_snprintf(htext, sizeof(htext), "%d", (gint)dh );
 			break;
 	}
 
 	gtk_entry_set_text ( GTK_ENTRY (entry_width), wtext );
 	gtk_entry_set_text ( GTK_ENTRY (entry_height), htext );
 	
-	sprintf(disp, "%d x %d dots per inch", vdpi, hdpi);
+	g_snprintf(disp, sizeof(disp), "%d x %d dots per inch", vdpi, hdpi);
 	gtk_label_set_text ( GTK_LABEL (label_dpi), disp );
 }
 

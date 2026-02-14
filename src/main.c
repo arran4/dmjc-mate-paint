@@ -239,7 +239,7 @@ static void init_eraser(GtkBuilder *builder)
 	
 	for(i = 0; i < 4; i++)
 	{
-		sprintf(name, "erase%d", i);
+		g_snprintf(name, sizeof(name), "erase%d", i);
 		erase = GTK_WIDGET (gtk_builder_get_object (builder, name));
 		if(!GTK_IS_WIDGET(erase))
 		{
@@ -276,7 +276,7 @@ static void init_paint_brush(GtkBuilder *builder)
 	
 	for(i = 0; i < GP_BRUSH_MAX; i++)
 	{
-		sprintf(name, "brush%d", i);
+		g_snprintf(name, sizeof(name), "brush%d", i);
 		brush = GTK_WIDGET (gtk_builder_get_object (builder, name));
 		if(!GTK_IS_WIDGET(brush))
 		{
