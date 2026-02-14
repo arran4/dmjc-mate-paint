@@ -237,13 +237,12 @@ struct fillpixelinfo
 
 #define PUSH(py, pxl, pxr, pdy) \
 { \
-    struct fillpixelinfo *p = sp;\
-    if (((py) + (pdy) >= 0) && ((py) + (pdy) < info->height))\
+    if (sp < stack + STACKSIZE && ((py) + (pdy) >= 0) && ((py) + (pdy) < info->height))\
     {\
-        p->y = (py);\
-        p->xl = (pxl);\
-        p->xr = (pxr);\
-        p->dy = (pdy);\
+        sp->y = (py);\
+        sp->xl = (pxl);\
+        sp->xr = (pxr);\
+        sp->dy = (pdy);\
         sp++; \
     }\
 }
@@ -296,19 +295,20 @@ set_new_pixel_value(struct fillinfo *info, int x, int y)
 static void
 flood_fill_algo(struct fillinfo *info, int x, int y)
 {
-    /* TODO: check for stack overflow? */
-    /* TODO: that's a lot of memory! esp if we never use it */
-    struct fillpixelinfo stack[STACKSIZE];
-    struct fillpixelinfo * sp = stack;
+    struct fillpixelinfo *stack;
+    struct fillpixelinfo *sp;
     int l, x1, x2, dy;
-    
-      
+
     if ((x >= 0) && (x < info->width) && (y >= 0) && (y < info->height))
     {
         if ((info->or == info->r) && (info->og == info->g) && (info->ob == info->b))
         {
             return;
         }
+
+        stack = g_new(struct fillpixelinfo, STACKSIZE);
+        sp = stack;
+
         PUSH(y, x, x, 1);
         PUSH(y + 1, x, x, -1);
         while (sp > stack)  
@@ -347,6 +347,7 @@ skip:
                 l = x;
             } while (x <= x2);
         }
+        g_free(stack);
     }
 }  
 
