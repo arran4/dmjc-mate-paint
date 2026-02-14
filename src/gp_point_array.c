@@ -123,8 +123,8 @@ gp_point_array_get_clipbox ( gp_point_array *pa,
 
     rectangle->x = x_min;
     rectangle->y = y_min;
-    rectangle->width  = x_max - x_min + 1;
-    rectangle->height = y_max - y_min + 1;
+    rectangle->width  = (x_max >= x_min) ? (x_max - x_min + 1) : 0;
+    rectangle->height = (y_max >= y_min) ? (y_max - y_min + 1) : 0;
 }
 
 void                
