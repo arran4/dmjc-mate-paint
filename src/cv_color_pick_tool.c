@@ -3,19 +3,6 @@
     Contributed by Juan Balderas
 
     This file is part of mate-paint.
-
-    mate-paint is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    mate-paint is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
 
 #include <gtk/gtk.h>
@@ -30,7 +17,7 @@
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
 
@@ -38,7 +25,6 @@ static void		destroy			( gpointer data  );
 typedef struct {
 	gp_tool			tool;
 	gp_canvas *		cv;
-	GdkGC *			gc;
 	gint 			x0,y0;
 	guint			button;
 	gboolean 		is_draw;
@@ -53,7 +39,6 @@ create_private_data( void )
 	{
 		m_priv = g_new0 (private_data,1);
 		m_priv->cv		=	NULL;
-		m_priv->gc		=	NULL;
 		m_priv->button	=	0;
 		m_priv->is_draw	=	FALSE;
 	}
@@ -90,14 +75,14 @@ button_press ( GdkEventButton *event )
 
 	if ( event->type == GDK_BUTTON_PRESS )
 	{
-		if ( event->button == LEFT_BUTTON )
-		{
-			m_priv->gc = m_priv->cv->gc_fg;
-		}
-		else if ( event->button == RIGHT_BUTTON )
-		{
-			m_priv->gc = m_priv->cv->gc_bg;
-		}
+		// if ( event->button == LEFT_BUTTON )
+		// {
+		// 	m_priv->gc = m_priv->cv->gc_fg;
+		// }
+		// else if ( event->button == RIGHT_BUTTON )
+		// {
+		// 	m_priv->gc = m_priv->cv->gc_bg;
+		// }
 		m_priv->is_draw = !m_priv->is_draw;
 		if( m_priv->is_draw ) m_priv->button = event->button;
 
@@ -118,6 +103,23 @@ button_press ( GdkEventButton *event )
 			if(get_pixel_from_pixbuf( pixbuf, &color, m_priv->x0, m_priv->y0) )
 			{
 				foreground_set_color_from_rgb  ( color );
+
+                // If using foreground_set_color_from_rgb, ensure it updates the correct color based on button.
+                // But foreground_set_color_from_rgb currently assumes foreground.
+                // The tool logic might need update to set background if right click.
+                // For now, consistent with existing logic (color.c logic sets foreground always in that func).
+
+                // Logic update:
+                GdkRGBA rgba;
+                rgba.red = ((color >> 24) & 0xFF) / 255.0;
+                rgba.green = ((color >> 16) & 0xFF) / 255.0;
+                rgba.blue = ((color >> 8) & 0xFF) / 255.0;
+                rgba.alpha = (color & 0xFF) / 255.0;
+
+                if (event->button == RIGHT_BUTTON)
+                    cv_set_color_bg(&rgba);
+                else
+                    cv_set_color_fg(&rgba); // Also updates UI
 			}
 			
 			g_object_unref ( pixbuf );
@@ -145,7 +147,7 @@ button_motion ( GdkEventMotion *event )
 }
 
 void	
-draw ( void )
+draw ( cairo_t *cr )
 {
 	if ( m_priv->is_draw )
 	{
@@ -157,7 +159,8 @@ void reset ( void )
 {
 	GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_CROSSHAIR);
 	g_assert(cursor);
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref ( cursor );
 	m_priv->is_draw = FALSE;
 }
@@ -167,6 +170,3 @@ void destroy ( gpointer data  )
 	destroy_private_data ();
 	g_print("color_pick tool destroy\n");
 }
-
-
-

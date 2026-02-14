@@ -3,19 +3,6 @@
     Contributed by Juan Balderas
 
     This file is part of mate-paint.
-
-    mate-paint is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    mate-paint is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
 
 
@@ -39,39 +26,25 @@ struct fillinfo
 
 static void setpixel(guchar *pixels, gint rowstride, gint n_channels, gint x, gint y, guint color);
 static gint getpixel(guchar *pixels, gint rowstride, gint n_channels, gint x, gint y);
-static gint fill_shape(GdkPixbuf *pixbuf, guint x, guint y, guint nc);
+// static gint fill_shape(GdkPixbuf *pixbuf, guint x, guint y, guint nc);
 
 static void
 flood_fill_algo(struct fillinfo *info, int x, int y);
 
 
-GdkRectangle fill_draw(GdkDrawable *drawable, GdkGC *gc, guint fill_color, guint x, guint y)
+GdkRectangle fill_draw(GdkPixbuf *pixbuf, guint fill_color, guint x, guint y)
 {
-	GdkPixbuf *pixbuf;
-	gint width, height;
 	struct fillinfo fillinfo;
 	guchar *p;
 	GdkRectangle rect = {0, 0, 0, 0};
 	
-	//printf("fill_draw fill_color: %.08X\n", fill_color);
-	//printf("fill_draw x: %d, y: %d\n", x, y);
-	
-	gdk_drawable_get_size(drawable, &width, &height);
-	//printf("fill_draw w: %d, h: %d\n", width, height);
-	pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, width, height);
+	if (!pixbuf) return rect;
 
-	gdk_pixbuf_fill(pixbuf, 0);
-
-	/* 1 get pixbuf from drawable */
-	gdk_pixbuf_get_from_drawable(pixbuf, drawable, NULL, 0, 0, 0, 0, width, height);
-	
 	fillinfo.gx = x;
 	fillinfo.gw = x;
 	fillinfo.gy = y;
 	fillinfo.gh = y;
 
-	/* 2 draw on pixbuf */
-	//fill_shape(pixbuf, x, y, fill_color);
 	fillinfo.rgb = gdk_pixbuf_get_pixels (pixbuf);
     fillinfo.width = gdk_pixbuf_get_width (pixbuf);
     fillinfo.height = gdk_pixbuf_get_height (pixbuf);
@@ -81,34 +54,26 @@ GdkRectangle fill_draw(GdkDrawable *drawable, GdkGC *gc, guint fill_color, guint
     fillinfo.g = getg(fill_color);
     fillinfo.b = getb(fill_color);
     fillinfo.a = geta(fill_color);
+
+    if (x < 0 || x >= fillinfo.width || y < 0 || y >= fillinfo.height) return rect;
+
     p = fillinfo.rgb + y * fillinfo.rowstride + x * fillinfo.pixelsize;
     fillinfo.or = *p;
     fillinfo.og = *(p + 1);
     fillinfo.ob = *(p + 2);
-    fillinfo.oa = *(p + 3);
+    if (fillinfo.pixelsize >= 4)
+        fillinfo.oa = *(p + 3);
+    else
+        fillinfo.oa = 255;
     
-    printf("     new color: %.02X%.02X%.02X%.02X\n", fillinfo.r, fillinfo.g, fillinfo.b, fillinfo.a);
-    printf("original color: %.02X%.02X%.02X%.02X\n", fillinfo.or, fillinfo.og, fillinfo.ob, fillinfo.oa);
-
     flood_fill_algo(&fillinfo, x, y);
 
-	/* 3 draw pixbuf back onto drawable.  */
-	gdk_draw_pixbuf(drawable, gc, pixbuf, 0, 0, 0, 0, gdk_pixbuf_get_width(pixbuf),
-					gdk_pixbuf_get_height(pixbuf), GDK_RGB_DITHER_NONE, 0, 0);
-	
-	/* clean up */
-	g_object_unref(pixbuf);
-    
     fillinfo.gw = ABS(fillinfo.gw - fillinfo.gx);
 	fillinfo.gh = ABS(fillinfo.gh - fillinfo.gy);
 	
-	/*g_printf("fillinfo.gx: %d, fillinfo.gy: %d, fillinfo.gw: %d, fillinfo.
-	fillinfo.gh: %d\n", fillinfo.gx, fillinfo.gy, fillinfo.gw, fillinfo.gh);
-	*/
 	rect.x = fillinfo.gx; rect.y = fillinfo.gy;
 	rect.width = fillinfo.gw + 1; rect.height = fillinfo.gh + 1;
 	
-	/* Return bounding rect of fill */
 	return rect;
 }
 
@@ -140,21 +105,14 @@ gboolean get_pixel_from_pixbuf(GdkPixbuf *pixbuf, guint *color, guint x, guint y
 		printf("get_pixel_from_pixbuf: bits per sample != 8\n");
 		return FALSE;
 	}
-	if (!gdk_pixbuf_get_has_alpha (pixbuf)){
-		printf("get_pixel_from_pixbuf: no alpha\n");
-		return FALSE;
-	}
-	if (n_channels != 4){
-		printf("get_pixel_from_pixbuf: n_channels != 4\n");
-		return FALSE;
-	}
+	// if (!gdk_pixbuf_get_has_alpha (pixbuf)){ ... } // Allow no alpha?
 	if (NULL == color){
 		printf("get_pixel_from_pixbuf: NULL == color\n");
 		return FALSE;
 	}
 
 	*color = getpixel(pixels, rowstride, n_channels, x, y);
-	printf("get_pixel_from_pixbuf color: 0x%.08x %s %d\n", *color, __FILE__, __LINE__);
+	// printf("get_pixel_from_pixbuf color: 0x%.08x %s %d\n", *color, __FILE__, __LINE__);
 
 	return TRUE;
 }
@@ -176,23 +134,6 @@ void set_pixel_in_pixbuf(GdkPixbuf *pixbuf, guint color, guint x, guint y)
 	rowstride = gdk_pixbuf_get_rowstride (pixbuf);
 	pixels = gdk_pixbuf_get_pixels (pixbuf);
 	
-	if (gdk_pixbuf_get_colorspace (pixbuf) != GDK_COLORSPACE_RGB){
-		printf("set_pixel_from_pixbuf: color space  != GDK_COLORSPACE_RGB\n");
-		return ;
-	}
-	if (gdk_pixbuf_get_bits_per_sample (pixbuf) != 8){
-		printf("set_pixel_from_pixbuf: bits per sample != 8\n");
-		return ;
-	}
-	if (!gdk_pixbuf_get_has_alpha (pixbuf)){
-		printf("set_pixel_from_pixbuf: no alpha\n");
-		return ;
-	}
-	if (n_channels != 4){
-		printf("set_pixel_from_pixbuf: n_channels != 4\n");
-		return ;
-	}
-	
 	setpixel(pixels, rowstride, n_channels, x, y, color);
 }
 
@@ -202,13 +143,12 @@ setpixel(guchar *pixels, gint rowstride, gint n_channels, gint x, gint y, guint 
 {
 	guchar *p;
 	
-	//printf("pp %.08X ", color);
-
 	p = pixels + (y * rowstride + x * n_channels);
 	p[0] = getr(color);/*red*/
 	p[1] = getg(color);/*green*/
 	p[2] = getb(color);/*blue*/
-	p[3] = geta(color); /* alpha */
+    if (n_channels >= 4)
+	    p[3] = geta(color); /* alpha */
 
 }
 
@@ -222,7 +162,10 @@ getpixel(guchar *pixels, gint rowstride, gint n_channels, gint x, gint y)
 	
 	p = pixels + (y * rowstride + x * n_channels);
 
-	color = col_rgba(p[0], p[1], p[2], p[3]);
+    if (n_channels >= 4)
+	    color = col_rgba(p[0], p[1], p[2], p[3]);
+    else
+        color = col_rgba(p[0], p[1], p[2], 255);
 
 	return color;
 }
@@ -265,7 +208,11 @@ is_old_pixel_value(struct fillinfo *info, int x, int y)
     or = *p;
     og = *(p + 1);
     ob = *(p + 2);
-    oa = *(p + 3);
+    if (info->pixelsize >= 4)
+        oa = *(p + 3);
+    else
+        oa = 255;
+
     if ((or == info->or) && (og == info->og) && 
     	(ob == info->ob) && (oa == info->oa))
     {
@@ -283,7 +230,8 @@ set_new_pixel_value(struct fillinfo *info, int x, int y)
     *p		 = info->r;
     *(p + 1) = info->g;
     *(p + 2) = info->b;
-    *(p + 3) = info->a;
+    if (info->pixelsize >= 4)
+        *(p + 3) = info->a;
     
     if (x <= info->gx)info->gx=x;
 	if (x > info->gw)info->gw=x;
@@ -307,7 +255,8 @@ flood_fill_algo(struct fillinfo *info, int x, int y)
     {
         if ((info->or == info->r) && (info->og == info->g) && (info->ob == info->b))
         {
-            return;
+            if (info->pixelsize < 4 || (info->oa == info->a))
+                return;
         }
         PUSH(y, x, x, 1);
         PUSH(y + 1, x, x, -1);
@@ -349,4 +298,3 @@ skip:
         }
     }
 }  
-

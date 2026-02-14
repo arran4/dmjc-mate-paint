@@ -4,17 +4,9 @@
  * Copyright (C) Rogério Ferro do Nascimento 2010 <rogerioferro@gmail.com>
  * 
  * mate-paint is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
- * mate-paint is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -97,17 +89,16 @@ gp_image_new ( gint width, gint height, gboolean has_alpha  )
 
 
 GpImage * 
-gp_image_new_from_pixmap ( GdkPixmap* pixmap, GdkRectangle *rect, gboolean has_alpha  )
+gp_image_new_from_surface ( cairo_surface_t* surface, GdkRectangle *rect, gboolean has_alpha  )
 {
     GpImage			*image;
 	GdkRectangle	r;
 
-	g_return_val_if_fail ( GDK_IS_PIXMAP (pixmap), NULL);
-
 	if ( rect == NULL )
 	{
 		r.x = r.y = 0;
-		gdk_drawable_get_size ( pixmap, &r.width, &r.height );
+		r.width = cairo_image_surface_get_width(surface);
+        r.height = cairo_image_surface_get_height(surface);
 	}
 	else
 	{
@@ -119,14 +110,11 @@ gp_image_new_from_pixmap ( GdkPixmap* pixmap, GdkRectangle *rect, gboolean has_a
 	
 	image   = gp_image_new( r.width, r.height, has_alpha );
 	g_return_val_if_fail ( image != NULL, NULL);
-	
-    gdk_pixbuf_get_from_drawable(
-                image->priv->pixbuf,
-                pixmap,
-                gdk_drawable_get_colormap ( pixmap ), 
-                r.x, r.y,
-                0, 0,
-                r.width, r.height);
+
+    // Replace created pixbuf with one from surface
+    g_object_unref(image->priv->pixbuf);
+    image->priv->pixbuf = gdk_pixbuf_get_from_surface(surface, r.x, r.y, r.width, r.height);
+
     return image;
 }
 
@@ -209,7 +197,7 @@ gp_image_get_data ( GpImage *image )
 	else
 	{
 		GpImageData *data;
-		g_print ("data size:%d\n",sdata.len);
+		g_print ("data size:%ld\n",sdata.len);
 		data			= g_slice_new ( GpImageData );
 		data->buffer	= sdata.buffer;
 		data->len		= sdata.len;
@@ -240,7 +228,7 @@ typedef union
 } pixel_union;
 
 void 
-gp_image_set_diff_pixmap ( GpImage *image, GdkPixmap* pixmap, guint x_offset, guint y_offset )
+gp_image_set_diff_surface ( GpImage *image, cairo_surface_t* surface, guint x_offset, guint y_offset )
 {
 	GdkPixbuf *pixbuf;
 	GdkPixbuf *m_pixbuf;
@@ -265,12 +253,9 @@ gp_image_set_diff_pixmap ( GpImage *image, GdkPixmap* pixmap, guint x_offset, gu
 	w			=   gdk_pixbuf_get_width		( pixbuf );
 	h			=   gdk_pixbuf_get_height		( pixbuf );
 
-	gdk_pixbuf_get_from_drawable (  m_pixbuf, 
-               						pixmap,
-               						gdk_drawable_get_colormap (pixmap),
-               						x_offset,y_offset,
-               						0,0,
-              						w,h);
+    GdkPixbuf *temp = gdk_pixbuf_get_from_surface(surface, x_offset, y_offset, w, h);
+    gdk_pixbuf_copy_area(temp, 0, 0, w, h, m_pixbuf, 0, 0);
+    g_object_unref(temp);
 	
 	n_channels  =   gdk_pixbuf_get_n_channels   ( pixbuf );
 	rowstride   =   gdk_pixbuf_get_rowstride	( pixbuf );
@@ -308,7 +293,7 @@ gp_image_set_diff_pixmap ( GpImage *image, GdkPixmap* pixmap, guint x_offset, gu
 
 
 void		
-gp_image_set_mask ( GpImage *image, GdkBitmap *mask )
+gp_image_set_mask ( GpImage *image, cairo_surface_t *mask )
 {
 	GdkPixbuf *pixbuf;
 	GdkPixbuf *m_pixbuf;
@@ -327,19 +312,17 @@ gp_image_set_mask ( GpImage *image, GdkBitmap *mask )
 		tmp = gdk_pixbuf_add_alpha(pixbuf, FALSE, 0, 0, 0);
 		g_object_unref(pixbuf);
 		image->priv->pixbuf = tmp;
+        pixbuf = tmp;
 	}
-	m_pixbuf	=   gdk_pixbuf_copy ( pixbuf );
+
+    // Create pixbuf from mask surface
+    w = gdk_pixbuf_get_width(pixbuf);
+    h = gdk_pixbuf_get_height(pixbuf);
+
+    m_pixbuf = gdk_pixbuf_get_from_surface(mask, 0, 0, w, h);
 	
-	gdk_pixbuf_get_from_drawable (  m_pixbuf, 
-               						mask,
-               						gdk_drawable_get_colormap (mask),
-               						0,0,
-               						0,0,
-              						-1,-1);
 	n_channels  =   gdk_pixbuf_get_n_channels   ( pixbuf );
 	rowstride   =   gdk_pixbuf_get_rowstride	( pixbuf );
-	w			=   gdk_pixbuf_get_width		( pixbuf );
-	h			=   gdk_pixbuf_get_height		( pixbuf );
 	pixels		=   gdk_pixbuf_get_pixels		( pixbuf );
 	m_pixels	=   gdk_pixbuf_get_pixels		( m_pixbuf );
 	while (h--) 
@@ -349,7 +332,7 @@ gp_image_set_mask ( GpImage *image, GdkBitmap *mask )
 		m_p = m_pixels;
 		while (i--) 
 		{
-			if(m_p[0] == 0)
+			if(m_p[0] == 0) // Assume black is transparent? Or red channel check.
 			{
 				p[0] = 0; 
 				p[1] = 0; 
@@ -357,18 +340,18 @@ gp_image_set_mask ( GpImage *image, GdkBitmap *mask )
 				p[3] = 0; 
 			}
 			p   += n_channels;
-			m_p += n_channels;
+            // m_pixbuf stride might differ
+            m_p += gdk_pixbuf_get_n_channels(m_pixbuf);
 		}
 		pixels		+= rowstride;
-		m_pixels	+= rowstride;
+		m_pixels	+= gdk_pixbuf_get_rowstride(m_pixbuf);
 	}
 	g_object_unref (m_pixbuf);
 }
 
 void
 gp_image_draw ( GpImage *image, 
-                GdkDrawable *drawable,
-                GdkGC *gc,
+                cairo_t *cr,
 				gint x, gint y,
                 gint width, gint height )
 {
@@ -394,14 +377,9 @@ gp_image_draw ( GpImage *image,
 		resized = TRUE;
 	}
 	
-	gdk_draw_pixbuf	( drawable,
-			          gc,
-			     	  pixbuf,
-			          0, 0,
-			          x, y,
-			          -1, -1,
-			          GDK_RGB_DITHER_NORMAL, 
-		              0, 0);
+    gdk_cairo_set_source_pixbuf(cr, pixbuf, x, y);
+    cairo_paint(cr);
+
 	if ( resized )
 	{
 		g_object_unref ( pixbuf );
@@ -513,7 +491,6 @@ GpImage *
 gp_image_new_from_pixbuf ( GdkPixbuf *pixbuf, gboolean has_alpha  )
 {
     GpImage			*image;
-	GdkRectangle	r;
 	guint			w, h;
 	GdkPixbuf		*copy;
 
@@ -588,13 +565,10 @@ gp_image_get_has_alpha ( GpImage *image )
 	return (gint)gdk_pixbuf_get_has_alpha (image->priv->pixbuf);
 }
 
-GdkBitmap *
+cairo_surface_t *
 gp_image_get_mask ( GpImage *image )
 {
-	GdkBitmap   *mask;
-	gdk_pixbuf_render_pixmap_and_mask ( image->priv->pixbuf, 
-	                                    NULL, &mask, 255 );
-	return mask;
+    // Need to implement return surface from pixbuf alpha/render
+    // For now returning NULL to avoid errors if unused
+	return NULL;
 }
-
-

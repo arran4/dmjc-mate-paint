@@ -6,22 +6,6 @@
  *  <rogerioferro@gmail.com>
  ****************************************************************************/
 
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
-
 #include "undo.h"
 #include "common.h"
 #include "cv_drawing.h"
@@ -84,27 +68,26 @@ static void         free_undo_queue     ( void );
 /* CODE */
 
 void 
-undo_create_mask ( gint width, gint height, GdkBitmap **mask, GdkGC **gc_mask )
+undo_create_mask ( gint width, gint height, cairo_surface_t **mask, cairo_t **cr_mask )
 {
-    GdkColor    color;
 	gp_canvas   *cv	=	cv_get_canvas();
      
-    *mask 		=	gdk_pixmap_new (NULL, width, height, 1 );
-    *gc_mask	=	gdk_gc_new ( *mask );
-    gdk_gc_set_line_attributes ( *gc_mask, cv->line_width, GDK_LINE_SOLID, 
-                             	 GDK_CAP_ROUND, GDK_JOIN_ROUND );
+    *mask = cairo_image_surface_create(CAIRO_FORMAT_A8, width, height);
+    *cr_mask = cairo_create(*mask);
 
-    color.pixel = 0;
-    gdk_gc_set_foreground (*gc_mask, &color);
-    gdk_draw_rectangle (*mask, *gc_mask, TRUE, 0, 0, width, height);
+    // Clear
+    cairo_set_source_rgba(*cr_mask, 0, 0, 0, 0);
+    cairo_paint(*cr_mask);
 
-    color.pixel = 1;
-    gdk_gc_set_foreground (*gc_mask, &color);
-    return;
+    cairo_set_line_width(*cr_mask, cv->line_width);
+    cairo_set_line_cap(*cr_mask, CAIRO_LINE_CAP_ROUND);
+    cairo_set_line_join(*cr_mask, CAIRO_LINE_JOIN_ROUND);
+
+    cairo_set_source_rgba(*cr_mask, 0, 0, 0, 1); // Draw with alpha 1
 }
 
 void
-undo_add (GdkRectangle *rect, GdkBitmap * mask, GdkPixmap *background, gp_tool_enum  tool )
+undo_add (GdkRectangle *rect, cairo_surface_t * mask, cairo_surface_t *background, gp_tool_enum  tool )
 {
 	GpUndo		*undo;
 	GpImage     *image;
@@ -112,24 +95,20 @@ undo_add (GdkRectangle *rect, GdkBitmap * mask, GdkPixmap *background, gp_tool_e
 
     if (mask != NULL)
     {
-        printf("undo_add() line: %d mask: %p\n", __LINE__, mask);
-        image = gp_image_new_from_pixmap ( cv->pixmap, rect, TRUE );
+        image = gp_image_new_from_surface ( cv->surface, rect, TRUE );
         gp_image_set_mask ( image, mask );
     }
     else
     if ( background != NULL )
     {
-        printf("undo_add() line: %d\n", __LINE__);
-        image = gp_image_new_from_pixmap ( background, rect, TRUE );
-        gp_image_set_diff_pixmap ( image, cv->pixmap, rect->x, rect->y );
+        image = gp_image_new_from_surface ( background, rect, TRUE );
+        gp_image_set_diff_surface ( image, cv->surface, rect->x, rect->y );
     }
     else
     {
-        printf("undo_add() line: %d\n", __LINE__);
-        image = gp_image_new_from_pixmap ( cv->pixmap, rect, FALSE );        
+        image = gp_image_new_from_surface ( cv->surface, rect, FALSE );
     }
 
-    printf("undo_add() line: %d\n", __LINE__);
 	undo	=	undo_image_new (image, rect->x, rect->y, tool );
 	g_queue_push_head	( undo_queue, undo );
 	g_object_unref (image);
@@ -221,7 +200,7 @@ undo_resize_new	( gp_canvas	*cv, gint width, gint height )
         rect.width    = cv_rect.width - width;
         rect.y        = 0;
         rect.height   = cv_rect.height;
-        image         = gp_image_new_from_pixmap ( cv->pixmap, &rect, FALSE );
+        image         = gp_image_new_from_surface ( cv->surface, &rect, FALSE );
         t_data->im_data_width  =   gp_image_get_data ( image );
         g_object_unref (image);
     }
@@ -238,7 +217,7 @@ undo_resize_new	( gp_canvas	*cv, gint width, gint height )
         rect.width    = MIN ( width, cv_rect.width );
         rect.y        = height;
         rect.height   = cv_rect.height - height;
-        image         = gp_image_new_from_pixmap ( cv->pixmap, &rect, FALSE );
+        image         = gp_image_new_from_surface ( cv->surface, &rect, FALSE );
         t_data->im_data_height =   gp_image_get_data ( image );
         g_object_unref (image);
     }
@@ -316,13 +295,15 @@ get_redo_image ( GpImage *image, gint x, gint y )
     rect.width  =   gp_image_get_width      ( image );
     rect.height =   gp_image_get_height     ( image );
     has_alpha   =   gp_image_get_has_alpha  ( image );
-    ret_image   =   gp_image_new_from_pixmap ( cv->pixmap, &rect, has_alpha );
+    ret_image   =   gp_image_new_from_surface ( cv->surface, &rect, has_alpha );
     if ( has_alpha )
     {
-        GdkBitmap   *mask;
+        cairo_surface_t   *mask;
         mask    =   gp_image_get_mask ( image );
-        gp_image_set_mask ( ret_image, mask );
-        g_object_unref ( mask );            
+        if (mask) {
+            gp_image_set_mask ( ret_image, mask );
+            cairo_surface_destroy ( mask );
+        }
     }
     return ret_image;
 }
@@ -358,7 +339,11 @@ draw_undo ( GpUndo *undo )
         redo_image  =   get_redo_image ( image, t_data->x, t_data->y );
         ret_undo	=	undo_image_new (redo_image, t_data->x, t_data->y, t_data->tool );
         g_object_unref (redo_image);
-        gp_image_draw ( image, cv->pixmap, cv->gc_fg, t_data->x, t_data->y, -1, -1 );
+
+        cairo_t *cr = cairo_create(cv->surface);
+        gp_image_draw ( image, cr, t_data->x, t_data->y, -1, -1 );
+        cairo_destroy(cr);
+
         g_object_unref ( image );
     }
     else
@@ -369,20 +354,23 @@ draw_undo ( GpUndo *undo )
         ret_undo	=	undo_resize_new (cv, t_data->width, t_data->height );
         cv_get_rect_size ( &cv_rect );
         cv_resize_pixmap ( t_data->width, t_data->height );
+
+        cairo_t *cr = cairo_create(cv->surface);
         if ( t_data->im_data_width != NULL )
         {
             GpImage     *image;
             image   =   gp_image_new_from_data ( t_data->im_data_width );
-            gp_image_draw ( image, cv->pixmap, cv->gc_fg, cv_rect.width, 0, -1, -1 );
+            gp_image_draw ( image, cr, cv_rect.width, 0, -1, -1 );
             g_object_unref ( image );
         }
         if ( t_data->im_data_height != NULL )
         {
             GpImage     *image;
             image   =   gp_image_new_from_data ( t_data->im_data_height );
-            gp_image_draw ( image, cv->pixmap, cv->gc_fg, 0, cv_rect.height, -1, -1 );
+            gp_image_draw ( image, cr, 0, cv_rect.height, -1, -1 );
             g_object_unref ( image );
         }
+        cairo_destroy(cr);
     }
     if ( undo_saved == undo )   file_set_save();
     else                        file_set_unsave();

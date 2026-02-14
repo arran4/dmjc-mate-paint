@@ -1,26 +1,11 @@
 /***************************************************************************
- *            cv_rectangle_tool.c
+ *            cv_polygon_tool.c
  *
  *  Thu Set 10 22:35:13 2009
  *  Copyright  2009  rogerio
  *  <rogerio@<host>>
  *  by Jacson
  ****************************************************************************/
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
  
  #include <gtk/gtk.h>
 
@@ -34,11 +19,11 @@
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
-static void		draw_in_pixmap	( GdkDrawable *drawable );
-static void     save_undo       ( void );
+static void		draw_polygon_cairo	( cairo_t *cr, gboolean closed );
+// static void     save_undo       ( void );
 
 /*private data*/
 typedef enum
@@ -51,8 +36,8 @@ typedef enum
 typedef struct {
 	gp_tool			tool;
 	gp_canvas       *cv;
-	GdkGC           *gcf;
-	GdkGC           *gcb;
+    GdkRGBA         color_f;
+    GdkRGBA         color_b;
 	guint			button;
 	gboolean 		is_draw;
     gp_point_array  *pa;
@@ -68,8 +53,6 @@ create_private_data( void )
 	{
 		m_priv = g_new0 (private_data,1);
 		m_priv->cv			=	NULL;
-		m_priv->gcf			=	NULL;
-		m_priv->gcb			=	NULL;
 		m_priv->button		=	NONE_BUTTON;
 		m_priv->is_draw		=	FALSE;
         m_priv->pa          =   gp_point_array_new();
@@ -110,13 +93,13 @@ button_press ( GdkEventButton *event )
 			{
 				if ( event->button == LEFT_BUTTON )
 				{
-					m_priv->gcf = m_priv->cv->gc_fg;
-					m_priv->gcb = m_priv->cv->gc_bg;
+                    m_priv->color_f = m_priv->cv->color_fg;
+                    m_priv->color_b = m_priv->cv->color_bg;
 				}
 				else if ( event->button == RIGHT_BUTTON )
 				{
-					m_priv->gcf = m_priv->cv->gc_bg;
-					m_priv->gcb = m_priv->cv->gc_fg;
+                    m_priv->color_f = m_priv->cv->color_bg;
+                    m_priv->color_b = m_priv->cv->color_fg;
 				}
 				m_priv->state = POLY_DRAWING;
 				m_priv->is_draw	= TRUE;
@@ -151,10 +134,16 @@ button_press ( GdkEventButton *event )
 				else
 				{
  					/*finish*/
-                    save_undo ();
+                    // save_undo ();
 					m_priv->state = POLY_NONE;
 					m_priv->is_draw	= FALSE;
-					draw_in_pixmap (m_priv->cv->pixmap);
+
+                    if (m_priv->cv->surface) {
+                        cairo_t *cr = cairo_create(m_priv->cv->surface);
+                        draw_polygon_cairo(cr, TRUE);
+                        cairo_destroy(cr);
+                    }
+
 					file_set_unsave ();
                     gp_point_array_clear ( m_priv->pa );
 				}
@@ -163,6 +152,22 @@ button_press ( GdkEventButton *event )
 		}
 		gtk_widget_queue_draw ( m_priv->cv->widget );
 	}
+    else if (event->type == GDK_2BUTTON_PRESS && m_priv->state != POLY_NONE) {
+        // Finish on double click
+        // save_undo ();
+        m_priv->state = POLY_NONE;
+        m_priv->is_draw	= FALSE;
+
+        if (m_priv->cv->surface) {
+            cairo_t *cr = cairo_create(m_priv->cv->surface);
+            draw_polygon_cairo(cr, TRUE);
+            cairo_destroy(cr);
+        }
+
+        file_set_unsave ();
+        gp_point_array_clear ( m_priv->pa );
+        gtk_widget_queue_draw ( m_priv->cv->widget );
+    }
 	return TRUE;
 }
 
@@ -195,20 +200,21 @@ button_motion ( GdkEventMotion *event )
 }
 
 static void	
-draw ( void )
+draw ( cairo_t *cr )
 {
 	if ( m_priv->is_draw )
 	{
-		draw_in_pixmap (m_priv->cv->drawing);
+		draw_polygon_cairo (cr, FALSE);
 	}
 }
 
 static void 
 reset ( void )
 {
-    GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_DOTBOX);
+	GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_DOTBOX);
 	g_assert(cursor);
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref( cursor );
 	m_priv->is_draw = FALSE;
 }
@@ -222,55 +228,38 @@ destroy ( gpointer data  )
 }
 
 static void
-draw_in_pixmap ( GdkDrawable *drawable )
+draw_polygon_cairo ( cairo_t *cr, gboolean closed )
 {
 	if ( gp_point_array_size (m_priv->pa) > 0 )
 	{
 		GdkPoint *	points		=	gp_point_array_data (m_priv->pa);
 		gint		n_points	=	gp_point_array_size (m_priv->pa);
+
+        if (n_points < 2) return;
+
+        cairo_new_path(cr);
+        cairo_move_to(cr, points[0].x + 0.5, points[0].y + 0.5);
+        for (int i = 1; i < n_points; i++) {
+            cairo_line_to(cr, points[i].x + 0.5, points[i].y + 0.5);
+        }
+
+        if (closed || m_priv->cv->filled != FILLED_NONE) {
+            cairo_close_path(cr);
+        }
+
 		if ( m_priv->cv->filled == FILLED_BACK )
 		{
-			gdk_draw_polygon ( drawable, m_priv->gcb, TRUE, points, n_points);
+            gdk_cairo_set_source_rgba(cr, &m_priv->color_b);
+            cairo_fill_preserve(cr);
 		}
-		else
-		if ( m_priv->cv->filled == FILLED_FORE )
+		else if ( m_priv->cv->filled == FILLED_FORE )
 		{
-			gdk_draw_polygon ( drawable, m_priv->gcf, TRUE, points, n_points);
+            gdk_cairo_set_source_rgba(cr, &m_priv->color_f);
+            cairo_fill_preserve(cr);
 		}
-		gdk_draw_polygon ( drawable, m_priv->gcf, FALSE, points, n_points);
+
+        gdk_cairo_set_source_rgba(cr, &m_priv->color_f);
+        cairo_set_line_width(cr, m_priv->cv->line_width);
+        cairo_stroke(cr);
 	}
 }
-
-static void     
-save_undo ( void )
-{
-    GdkRectangle    rect;
-    GdkRectangle    rect_max;
-    GdkBitmap       *mask;
-    GdkGC	        *gc_mask;
-    gp_point_array  *pa;
-    GdkPoint        *points;
-    gint	        n_points;
-
-    pa = gp_point_array_new ();
-    gp_point_array_copy ( m_priv->pa, pa );
-    points 		=	gp_point_array_data ( pa );
-    n_points	=	gp_point_array_size ( pa );
-
-    cv_get_rect_size ( &rect_max );
-    gp_point_array_get_clipbox ( pa, &rect, m_priv->cv->line_width, &rect_max );
-    undo_create_mask ( rect.width, rect.height, &mask, &gc_mask );
-    gp_point_array_offset ( pa, -rect.x, -rect.y);
-
-    gdk_draw_polygon ( mask, gc_mask, FALSE, points, n_points);
-    if ( m_priv->cv->filled != FILLED_NONE )
-    {
-        gdk_draw_polygon ( mask, gc_mask, TRUE, points, n_points);
-    }
-
-    undo_add ( &rect, mask, NULL, TOOL_POLYGON );
-
-    gp_point_array_free ( pa );
-    g_object_unref (gc_mask);
-    g_object_unref (mask);
- }

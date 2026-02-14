@@ -1,13 +1,14 @@
 #ifndef _PIXBUF_UTIL_H_
 #define _PIXBUF_UTIL_H_
 
+#include <gtk/gtk.h>
 
 #define col(r, g ,b)  ((unsigned int) (((unsigned char) (b) | \
 					  ((unsigned short) (g) << 8)) | \
 					  (((unsigned int) (unsigned char) (r)) << 16)))
 
-#define col_rgba(r,g,b,a) ((guint)(((guchar)(a)| \
-						  ((gushort)(b)<<8))| \
+#define col_rgba(r,g,b,a) ((guint)(((guchar)(a))| \
+						  (((guint)(guchar)(b))<<8)| \
 						  (((guint)(guchar)(g))<<16)| \
 						  (((guint)(guchar)(r))<<24)))
 
@@ -16,8 +17,9 @@
 #define getb(x) (((x >> 8) & 0x0FF))
 #define geta(x) ((x & 0x0FF))
 
-GdkRectangle fill_draw(GdkDrawable *drawable, GdkGC *gc, guint fill_color,
-					   guint x, guint y);
+/* Modified to work on GdkPixbuf directly */
+GdkRectangle fill_draw(GdkPixbuf *pixbuf, guint fill_color, guint x, guint y);
+
 gboolean get_pixel_from_pixbuf(GdkPixbuf *pixbuf, guint *color,
                                guint x, guint y);
 

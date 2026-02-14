@@ -7,17 +7,10 @@
  * under the terms of the GNU General Public License as published by the
  * Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
- * pick_color is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include  <gdk/gdk.h>
+#include <math.h>
 
 #include "color-picker.h"
 
@@ -66,10 +59,10 @@ static guint picker_signals[LAST_SIGNAL] = { 0 };
 struct _ColorPickerPrivate
 {
 	guint		has_grab : 1;
-	GdkColor	color;
+	GdkRGBA	color;
 	/* Window for grabbing on */
 	GtkWidget   *dropper_grab_widget;
-	guint32		grab_time;
+    GdkSeat     *grab_seat;
 };
 
 G_DEFINE_TYPE (ColorPicker, color_picker, G_TYPE_OBJECT);
@@ -82,6 +75,7 @@ color_picker_init (ColorPicker *object)
 {
 	object->priv = COLOR_PICKER_GET_PRIVATE (object);
 	object->priv->dropper_grab_widget = NULL;
+    object->priv->grab_seat = NULL;
 }
 
 static void
@@ -101,14 +95,10 @@ static void
 color_picker_class_init (ColorPickerClass *klass)
 {
 	GObjectClass* object_class = G_OBJECT_CLASS (klass);
-//	GObjectClass* parent_class = G_OBJECT_CLASS (klass);
 
 	object_class->finalize = color_picker_finalize;
 
 	g_type_class_add_private (object_class, sizeof (ColorPickerPrivate));
-
-	
-//	klass->color_changed = color_picker_color_changed;
 
 	picker_signals[COLOR_CHANGED] =
 		g_signal_new ("color-changed",
@@ -154,26 +144,8 @@ make_picker_cursor (GdkScreen *screen)
 
   if (!cursor)
     {
-      GdkColor bg = { 0, 0xffff, 0xffff, 0xffff };
-      GdkColor fg = { 0, 0x0000, 0x0000, 0x0000 };
-      GdkWindow *window;
-      GdkPixmap *pixmap, *mask;
-
-      window = gdk_screen_get_root_window (screen);
-      
-      pixmap =
-	gdk_bitmap_create_from_data (window, (gchar *) dropper_bits,
-				     DROPPER_WIDTH, DROPPER_HEIGHT);
-      
-      mask =
-	gdk_bitmap_create_from_data (window, (gchar *) dropper_mask,
-				     DROPPER_WIDTH, DROPPER_HEIGHT);
-      
-      cursor = gdk_cursor_new_from_pixmap (pixmap, mask, &fg, &bg,
-					   DROPPER_X_HOT, DROPPER_Y_HOT);
-      
-      g_object_unref (pixmap);
-      g_object_unref (mask);
+      // Fallback
+      cursor = gdk_cursor_new_for_display(gdk_screen_get_display(screen), GDK_CROSSHAIR);
     }
       
   return cursor;
@@ -208,9 +180,10 @@ grab_color_at_mouse (GdkScreen *screen,
       g_object_unref (pixbuf);
       return;
     }
-  priv->color.red = pixels[0] * 257;
-  priv->color.green = pixels[1] * 257;
-  priv->color.blue = pixels[2] * 257;
+  priv->color.red = pixels[0] / 255.0;
+  priv->color.green = pixels[1] / 255.0;
+  priv->color.blue = pixels[2] / 255.0;
+  priv->color.alpha = 1.0;
 
   (void)rowstride;
   g_object_unref (pixbuf);
@@ -227,8 +200,10 @@ shutdown_eyedropper (ColorPicker *colorpicker)
 	if (priv->has_grab)
 	{
 		GdkDisplay *display = gtk_widget_get_display (priv->dropper_grab_widget);
-		gdk_display_keyboard_ungrab (display, priv->grab_time);
-		gdk_display_pointer_ungrab (display, priv->grab_time);
+        if (priv->grab_seat) {
+            gdk_seat_ungrab(priv->grab_seat);
+            priv->grab_seat = NULL;
+        }
 		gtk_grab_remove (priv->dropper_grab_widget);
 
 		priv->has_grab = FALSE;
@@ -282,8 +257,12 @@ key_press (GtkWidget   *invisible,
   guint state = event->state & gtk_accelerator_get_default_mod_mask ();
   gint x, y;
   gint dx, dy;
+  GdkDevice *device;
+  GdkSeat *seat;
 
-  gdk_display_get_pointer (display, NULL, &x, &y, NULL);
+  seat = gdk_display_get_default_seat(display);
+  device = gdk_seat_get_pointer(seat);
+  gdk_device_get_position(device, NULL, &x, &y);
 
   dx = 0;
   dy = 0;
@@ -337,7 +316,7 @@ key_press (GtkWidget   *invisible,
       return FALSE;
     }
 
-  gdk_display_warp_pointer (display, screen, x + dx, y + dy);
+  gdk_device_warp (device, screen, x + dx, y + dy);
   
   return TRUE;
 
@@ -348,9 +327,6 @@ mouse_press (GtkWidget      *invisible,
 	     GdkEventButton *event,
 	     gpointer        data)
 {
-  /* ColorPicker *colorpicker = data; */
-
-    
   if (event->type == GDK_BUTTON_PRESS &&
       event->button == 1)
     {
@@ -407,7 +383,9 @@ color_picker_get_screen_color (ColorPicker *colorpicker, GtkWidget *widget)
   GdkCursor *picker_cursor;
   GdkGrabStatus grab_status;
   GtkWidget *grab_widget, *toplevel;
-  guint32 time = gtk_get_current_event_time ();
+  // guint32 time = gtk_get_current_event_time ();
+  GdkDisplay *display = gtk_widget_get_display(widget);
+  GdkSeat *seat = gdk_display_get_default_seat(display);
 
 	
   if ( priv->dropper_grab_widget == NULL )
@@ -433,27 +411,27 @@ color_picker_get_screen_color (ColorPicker *colorpicker, GtkWidget *widget)
       priv->dropper_grab_widget = grab_widget;
    }
 
-  if (gdk_keyboard_grab (gtk_widget_get_window (priv->dropper_grab_widget),
-                         FALSE, time) != GDK_GRAB_SUCCESS)
-    return;
-  
   picker_cursor = make_picker_cursor (screen);
-  grab_status = gdk_pointer_grab (gtk_widget_get_window (priv->dropper_grab_widget),
-				  FALSE,
-				  GDK_BUTTON_RELEASE_MASK | GDK_BUTTON_PRESS_MASK | GDK_POINTER_MOTION_MASK,
-				  NULL,
-				  picker_cursor,
-				  time);
+
+  // Use gdk_seat_grab in GTK3
+  grab_status = gdk_seat_grab(seat,
+                              gtk_widget_get_window(priv->dropper_grab_widget),
+                              GDK_SEAT_CAPABILITY_ALL,
+                              TRUE,
+                              picker_cursor,
+                              NULL,
+                              NULL,
+                              NULL);
+
   g_object_unref (picker_cursor);
   
   if (grab_status != GDK_GRAB_SUCCESS)
   {
-      gdk_display_keyboard_ungrab (gtk_widget_get_display (widget), time);
       return;
   }
 
   gtk_grab_add (priv->dropper_grab_widget);
-  priv->grab_time = time;
+  priv->grab_seat = seat;
   priv->has_grab = TRUE;
   
   g_signal_connect (priv->dropper_grab_widget, "grab-broken-event",
@@ -464,7 +442,7 @@ color_picker_get_screen_color (ColorPicker *colorpicker, GtkWidget *widget)
                     G_CALLBACK (key_press), colorpicker);
 }
 
-GdkColor	*   
+GdkRGBA	*
 color_picker_get_color (ColorPicker *colorpicker)
 {
 	ColorPickerPrivate *priv = colorpicker->priv;

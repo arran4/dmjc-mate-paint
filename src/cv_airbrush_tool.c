@@ -3,25 +3,8 @@
 	Copyright (C) Juan Balderas 2010
 
 	cv_airbrush_tool.c is part of mate-paint.
-
-	mate-paint is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	mate-paint is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
-/*
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-*/
+
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <time.h>
@@ -31,6 +14,7 @@
 #include "undo.h"
 #include "file.h"
 #include "toolbar.h"
+#include "cv_drawing.h"
 
 
 /* mspaint's airbrushes widths are 25, 17, 9 */
@@ -46,28 +30,25 @@
 /* Get a random number from 0 to N. Thanks c-faq! */
 #define get_rnum(N) ((int)((double)rand() / ((double)(RAND_MAX)+(1))*(N)))
 
-static void draw_airbrush(GdkDrawable *drawable);
+static void draw_airbrush_cairo(cairo_t *cr);
 static gboolean timer_func(gpointer data);
 static gint pt_in_circle(gint center_x, gint center_y, gint radius, gint x, gint y);
-
-static GdkPixmap *copy_pixmap(GdkPixmap *pixmap);
 
 /*Member functions*/
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
-static void		draw_in_pixmap	( GdkDrawable *drawable );
-static void     save_undo       ( void );
+// static void     save_undo       ( void );
 
 
 /*private data*/
 typedef struct {
 	gp_tool			tool;
 	gp_canvas *		cv;
-	GdkGC *			gc;
+    GdkRGBA         color;
     guint			button;
 	gboolean 		is_draw;
     GdkPoint		pt;		/* Location of mouse */
@@ -75,7 +56,6 @@ typedef struct {
 	gint			diam;	/* Diameter of brush circle */
     gint			rad;	/* Radius of brush circle */
     gint			x_min,y_min,x_max,y_max;
-    GdkPixmap *		pixmap;
 } private_data;
 
 static private_data		*m_priv = NULL;
@@ -87,7 +67,6 @@ create_private_data( void )
 	{
 		m_priv = g_new0 (private_data,1);
 		m_priv->cv		=	NULL;
-		m_priv->gc		=	NULL;
 		m_priv->button	=	NONE_BUTTON;
         m_priv->is_draw	=	FALSE;
 		m_priv->diam	=	DIAMETER;
@@ -98,12 +77,6 @@ create_private_data( void )
 static void
 destroy_private_data( void )
 {
-    if(GDK_IS_PIXMAP(m_priv->pixmap))
-	{
-		g_object_unref(m_priv->pixmap);
-		m_priv->pixmap = NULL;
-	}
-
     g_free (m_priv);
 	m_priv = NULL;
 }
@@ -131,11 +104,11 @@ button_press ( GdkEventButton *event )
 	{
 		if ( event->button == LEFT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_fg_pencil;
+            m_priv->color = m_priv->cv->color_fg;
 		}
 		else if ( event->button == RIGHT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_bg_pencil;
+            m_priv->color = m_priv->cv->color_bg;
 		}
 		m_priv->is_draw = !m_priv->is_draw;
 		if( m_priv->is_draw ) m_priv->button = event->button;
@@ -150,22 +123,16 @@ button_press ( GdkEventButton *event )
 		m_priv->x_min = m_priv->x_max = m_priv->pt.x;
 		m_priv->y_min = m_priv->y_max = m_priv->pt.y;
 		
-		if(GDK_IS_PIXMAP(m_priv->pixmap))
-		{
-			g_object_unref(m_priv->pixmap);
-			m_priv->pixmap = NULL;
-		}
-
-		/* Copy pixbuf before changes */
-		m_priv->pixmap = copy_pixmap(m_priv->cv->pixmap);
-
-		draw_airbrush(m_priv->cv->pixmap);
+        // Initial draw
+        if (m_priv->cv->surface) {
+            cairo_t *cr = cairo_create(m_priv->cv->surface);
+            draw_airbrush_cairo(cr);
+            cairo_destroy(cr);
+        }
 	
 		m_priv->ret = TRUE;
 		g_timeout_add(125, timer_func, NULL);
 		
-		//printf("airbrush button_press\n");
-
 		if( !m_priv->is_draw ) gtk_widget_queue_draw ( m_priv->cv->widget );
 	}
 	return TRUE;
@@ -183,8 +150,7 @@ button_release ( GdkEventButton *event )
 		{
 			if( m_priv->is_draw )
 			{
-				draw_in_pixmap (m_priv->cv->pixmap);
-                save_undo ();
+                // save_undo ();
 				file_set_unsave ();
 			}
 			gtk_widget_queue_draw ( m_priv->cv->widget );
@@ -198,7 +164,6 @@ button_release ( GdkEventButton *event )
 static gboolean
 button_motion ( GdkEventMotion *event )
 {
-	GdkModifierType state;
 	gint x, y;
 	gdouble xd, yd;
 
@@ -214,7 +179,6 @@ button_motion ( GdkEventMotion *event )
 			x = (gint) event->x;
 			y = (gint) event->y;
 		}
-		state = event->state;
 		
 		m_priv->pt.x = x;
 		m_priv->pt.y = y;
@@ -229,35 +193,36 @@ button_motion ( GdkEventMotion *event )
 }
 
 static void	
-draw ( void )
+draw ( cairo_t *cr )
 {
-	if ( m_priv->is_draw )
-	{
-		draw_in_pixmap (m_priv->cv->pixmap);
-	}
+	// Do nothing in expose
 }
 
 
 /* Location of airbrush icon */
-#define AIRBRUSH_ICON PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "mate-paint" G_DIR_SEPARATOR_S "icons" \
-		G_DIR_SEPARATOR_S "hicolor" G_DIR_SEPARATOR_S "16x16" G_DIR_SEPARATOR_S "actions" \
-		G_DIR_SEPARATOR_S "stock-tool-airbrush.png"
+#define AIRBRUSH_ICON "stock-tool-airbrush" // Use named icon if possible
+
 static void 
 reset ( void )
 {
-	printf("Debug: %s\n", AIRBRUSH_ICON);
 	GdkCursor *cursor;
-	GdkPixbuf *pixbuf;
+	// GdkPixbuf *pixbuf;
 
-	pixbuf = gdk_pixbuf_new_from_file (AIRBRUSH_ICON, NULL);
+	/*
+    pixbuf = gdk_pixbuf_new_from_file (AIRBRUSH_ICON, NULL);
 	cursor = gdk_cursor_new_from_pixbuf(gdk_display_get_default (), pixbuf, 0, 14);
 	g_object_unref(pixbuf);
+	*/
+
+    // Fallback
+	cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_SPRAYCAN);
+	if (!cursor)
+	    cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_CROSSHAIR);
+
+	g_assert(cursor);
 	
-	if(!cursor){
-		cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_CROSSHAIR);
-		g_assert(cursor);
-	}
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref ( cursor );
 	m_priv->is_draw = FALSE;
 }
@@ -269,14 +234,7 @@ destroy ( gpointer data  )
 	g_print("airbrush tool destroy\n");
 }
 
-static void
-draw_in_pixmap ( GdkDrawable *drawable )
-{
-	draw_airbrush(drawable);
-	//printf("draw_in_pixmap ");
-}
-
-static void draw_airbrush(GdkDrawable *drawable)
+static void draw_airbrush_cairo(cairo_t *cr)
 {
 	gint x, y, i;
 
@@ -289,6 +247,8 @@ static void draw_airbrush(GdkDrawable *drawable)
 	if (m_priv->pt.y > m_priv->y_max)
 		m_priv->y_max = m_priv->pt.y;
 	
+    gdk_cairo_set_source_rgba(cr, &m_priv->color);
+
 	for(i = 0; i < NTIMES; i++)
 	{
 		x = m_priv->pt.x + get_rnum(m_priv->diam);
@@ -298,7 +258,8 @@ static void draw_airbrush(GdkDrawable *drawable)
 						m_priv->pt.y + m_priv->rad ,
 						m_priv->rad, x, y))
 		{
-			gdk_draw_line(drawable, m_priv->gc, x, y, x, y);
+            cairo_rectangle(cr, x, y, 1, 1);
+            cairo_fill(cr);
 		}
 	}
 }
@@ -312,9 +273,12 @@ static gboolean timer_func(gpointer data)
 		return m_priv->ret;
 	}
 	
-	draw_airbrush(m_priv->cv->pixmap);
+    if (m_priv->cv->surface) {
+        cairo_t *cr = cairo_create(m_priv->cv->surface);
+        draw_airbrush_cairo(cr);
+        cairo_destroy(cr);
 	gtk_widget_queue_draw ( m_priv->cv->widget );
-	//printf("Debug: timer_func ");
+    }
 
 	return m_priv->ret;
 }
@@ -326,47 +290,4 @@ static gint pt_in_circle(gint center_x, gint center_y, gint radius, gint x, gint
 
 	square_dist = ((center_x - x) * (center_x - x)) + ((center_y - y) * (center_y - y));
 	return square_dist <= (radius * radius);
-}
-
-static void     
-save_undo ( void )
-{
-	gint w,h;
-	GdkRectangle rect;
-	
-	rect.x		=	m_priv->x_min;
-	rect.y		=	m_priv->y_min;
-	rect.width	=	m_priv->x_max - m_priv->x_min + m_priv->diam;
-	rect.height	=	m_priv->y_max - m_priv->y_min + m_priv->diam;
-
-	if (rect.x<0) rect.x = 0;
-	if (rect.y<0) rect.y = 0;
-	gdk_drawable_get_size ( m_priv->cv->pixmap, &w, &h );
-	if (rect.width>w) rect.width=w;
-	if (rect.height>h) rect.height=h;
-    
-    undo_add ( &rect, NULL, m_priv->pixmap, TOOL_AIRBRUSH);
-    
-	
-	g_print ("save_undo\n");
-}
-
-static GdkPixmap *copy_pixmap(GdkPixmap *pixmap)
-{
-	GdkPixmap *pixmap_copy = NULL;
-	gint w, h;
-
-	if(!GDK_IS_PIXMAP(pixmap)){
-		return NULL;
-	}
-	
-	gdk_drawable_get_size(GDK_DRAWABLE( pixmap ), &w, &h);
-	pixmap_copy = gdk_pixmap_new(GDK_DRAWABLE( pixmap ), w, h, -1);
-	gdk_draw_drawable (	pixmap_copy,
-		            	m_priv->cv->gc_fg,
-			            pixmap,
-			            0, 0,
-			            0, 0,
-			            w, h );
-	return pixmap_copy;
 }

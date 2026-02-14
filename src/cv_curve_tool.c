@@ -3,22 +3,9 @@
 	Copyright (C) Juan Balderas 2010
 
 	cv_curve_tool.c is part of mate-paint.
-
-	mate-paint is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	mate-paint is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
  
- #include <gtk/gtk.h>
+#include <gtk/gtk.h>
 
 #include "cv_curve_tool.h"
 #include "cv_drawing.h"
@@ -32,25 +19,24 @@ typedef enum{
 	GP_CURVE_SET
 }GPCurveAction;
 
-void draw_bezier(GdkDrawable *drawable, GdkGC *gc, GdkPoint pt1, GdkPoint pt2, GdkPoint pt3);
+static void draw_bezier_cairo(cairo_t *cr, GdkPoint pt1, GdkPoint pt2, GdkPoint pt3);
 
 /*Member functions*/
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
-static void		draw_in_pixmap	( GdkDrawable *drawable );
-static void     save_undo       ( void );
+static void		draw_in_cairo	( cairo_t *cr );
+// static void     save_undo       ( void );
 
 
 /*private data*/
 typedef struct {
 	gp_tool			tool;
 	gp_canvas *		cv;
-	GdkGC *			gcf;
-	GdkGC *			gcb;
+    GdkRGBA         color;
 	guint			button;
 	gboolean 		is_draw;
 	GdkPoint		start, crv, end;
@@ -66,8 +52,6 @@ create_private_data( void )
 	{
 		m_priv = g_new0 (private_data,1);
 		m_priv->cv		=	NULL;
-		m_priv->gcf		=	NULL;
-		m_priv->gcb		=	NULL;
 		m_priv->button	=	NONE_BUTTON;
 		m_priv->is_draw	=	FALSE;
         m_priv->action	=	GP_CURVE_DO_LINE;
@@ -102,13 +86,11 @@ button_press ( GdkEventButton *event )
 	{
 		if ( event->button == LEFT_BUTTON )
 		{
-			m_priv->gcf = m_priv->cv->gc_fg;
-			m_priv->gcb = m_priv->cv->gc_bg;
+            m_priv->color = m_priv->cv->color_fg;
 		}
 		else if ( event->button == RIGHT_BUTTON )
 		{
-			m_priv->gcf = m_priv->cv->gc_bg;
-			m_priv->gcb = m_priv->cv->gc_fg;
+            m_priv->color = m_priv->cv->color_bg;
 		}
 		m_priv->is_draw = !m_priv->is_draw;
 		if( m_priv->is_draw ) m_priv->button = event->button;
@@ -164,8 +146,12 @@ button_release ( GdkEventButton *event )
 					case GP_CURVE_SET:
 						m_priv->crv.x = (gint)event->x;
         				m_priv->crv.y = (gint)event->y;
-						save_undo ();
-						draw_in_pixmap (m_priv->cv->pixmap);
+						// save_undo ();
+                        if (m_priv->cv->surface) {
+                            cairo_t *cr = cairo_create(m_priv->cv->surface);
+                            draw_in_cairo(cr);
+                            cairo_destroy(cr);
+                        }
 						file_set_unsave ();
             			m_priv->action = GP_CURVE_DO_LINE;
 						break;
@@ -205,11 +191,11 @@ button_motion ( GdkEventMotion *event )
 }
 
 static void	
-draw ( void )
+draw ( cairo_t *cr )
 {
 	if ( m_priv->is_draw )
 	{
-		draw_in_pixmap (m_priv->cv->drawing);
+		draw_in_cairo (cr);
 	}
 }
 
@@ -218,7 +204,8 @@ reset ( void )
 {
 	GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_CROSSHAIR);
 	g_assert(cursor);
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref ( cursor );
 	m_priv->is_draw = FALSE;
 }
@@ -231,32 +218,37 @@ destroy ( gpointer data  )
 }
 
 static void
-draw_in_pixmap ( GdkDrawable *drawable )
+draw_in_cairo ( cairo_t *cr )
 {
+    gdk_cairo_set_source_rgba(cr, &m_priv->color);
+    cairo_set_line_width(cr, m_priv->cv->line_width);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+
     switch(m_priv->action)
     {
        	case GP_CURVE_DO_LINE:
-       		gdk_draw_line(drawable, m_priv->gcf, m_priv->start.x, m_priv->start.y,
-       					  m_priv->end.x, m_priv->end.y);
+            cairo_move_to(cr, m_priv->start.x + 0.5, m_priv->start.y + 0.5);
+            cairo_line_to(cr, m_priv->end.x + 0.5, m_priv->end.y + 0.5);
+            cairo_stroke(cr);
 			break;
 		case GP_CURVE_DO_CURVE:
-			draw_bezier(drawable, m_priv->gcf, m_priv->start, m_priv->crv, m_priv->end);
+			draw_bezier_cairo(cr, m_priv->start, m_priv->crv, m_priv->end);
 			break;
 		case GP_CURVE_SET:
-			draw_bezier(drawable, m_priv->gcf, m_priv->start, m_priv->crv, m_priv->end);
+			draw_bezier_cairo(cr, m_priv->start, m_priv->crv, m_priv->end);
 			break;
 		default:
 			break;
     }
 }
 
-void draw_bezier(GdkDrawable *drawable, GdkGC *gc, GdkPoint pt1, GdkPoint pt2, GdkPoint pt3)
+static void draw_bezier_cairo(cairo_t *cr, GdkPoint pt1, GdkPoint pt2, GdkPoint pt3)
 {
-	gint x, y, x2, y2;
 	double t, t2;
+    double x, y;
 	
-	x2 = pt1.x;
-	y2 = pt1.y;
+    cairo_new_path(cr);
+    cairo_move_to(cr, pt1.x + 0.5, pt1.y + 0.5);
 	
 	for(t = 0.0; t < 1.0 + .02; t += .02)
 	{
@@ -272,46 +264,7 @@ void draw_bezier(GdkDrawable *drawable, GdkGC *gc, GdkPoint pt1, GdkPoint pt2, G
 			pt2.y + (t2 * t2) *
 			pt3.y ;
 
-		gdk_draw_line(drawable, gc, x, y, x2, y2);
-		
-		x2 = x; y2 = y;
+        cairo_line_to(cr, x + 0.5, y + 0.5);
 	}
-
+    cairo_stroke(cr);
 }
-
-static void     
-save_undo ( void )
-{
-    GdkRectangle    rect;
-    GdkRectangle    rect_max;
-    GdkBitmap       *mask = NULL;
-	GdkGC	        *gc_mask;
-	gp_point_array  *pa;
-	GdkPoint		*points;
-
-    cv_get_rect_size ( &rect_max );
-    pa = gp_point_array_new ();
-    gp_point_array_append ( pa, m_priv->start.x, m_priv->start.y );
-    gp_point_array_append ( pa, m_priv->crv.x, m_priv->crv.y );
-    gp_point_array_append ( pa, m_priv->end.x, m_priv->end.y );
-    
-    gp_point_array_get_clipbox ( pa, &rect, m_priv->cv->line_width, &rect_max );
-        
-	undo_create_mask ( rect.width, rect.height, &mask, &gc_mask );
-	
-	gp_point_array_offset ( pa, -rect.x, -rect.y);
-	points = gp_point_array_data ( pa );
-
-	draw_bezier(mask, gc_mask, points[0], points[1], points[2]);
-
-	g_object_unref (gc_mask);
-	gp_point_array_free ( pa );
-
-    undo_add ( &rect, mask, NULL, TOOL_CURVE );
-    if ( mask != NULL ) g_object_unref (mask);
-}
-
-
-
-
-

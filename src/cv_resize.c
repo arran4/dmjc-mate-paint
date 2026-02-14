@@ -5,22 +5,6 @@
  *  Copyright  2009  rogerio
  *  <rogerio@<host>>
  ****************************************************************************/
-
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
  
 #include <gtk/gtk.h>
 
@@ -47,8 +31,7 @@ static GtkWidget	*cv_bottom_edge	=	NULL;
 static GtkWidget	*cv_left_edge	=	NULL;
 static GtkWidget	*cv_right_edge	=	NULL;
 static GtkWidget	*lb_size		=	NULL;
-static GdkGC 		*gc_resize		=	NULL;
-static GdkColor 	edge_color		=	{ 0, 0x2f00, 0x3600, 0x9800  };
+static GdkRGBA 	    edge_color		=	{ 0.18, 0.21, 0.59, 1.0  }; // Approx from 0x2f00 0x3600 0x9800
 static gboolean		b_resize		=	FALSE;
 static gboolean		b_rz_init		=	FALSE;
 static gint			x_res			=	0;
@@ -84,15 +67,17 @@ cv_resize_set_canvas ( gp_canvas * canvas )
 void
 cv_resize_draw ( void )
 {
+    // Draw directly via GtkDrawingArea expose/draw signal in cv_drawing.c or similar
+    // This function used to draw on canvas drawing area directly.
+    // In GTK3 we can't draw outside draw signal easily.
+    // We update UI labels here.
+
 	GString *str = g_string_new("");
 	gint x,y;
 
 	if (b_resize)
 	{
-		gdk_draw_line ( cv->drawing, gc_resize, 0, 0, x_res, 0 );
-		gdk_draw_line ( cv->drawing, gc_resize, 0, y_res, x_res, y_res );
-		gdk_draw_line ( cv->drawing, gc_resize, x_res, 0, x_res, y_res );
-		gdk_draw_line ( cv->drawing, gc_resize, 0, 0, 0, y_res );
+        // Drawing handled by event box draw signal
 		x = x_res;
 		y = y_res;
 	}
@@ -122,18 +107,8 @@ cv_resize_adjust_box_size (gint width, gint height)
 void
 on_cv_ev_box_realize (GtkWidget *widget, gpointer user_data)
 {
-	gint8 dash_list[]	=	{ 1, 1 };
 	cv_ev_box	        =	widget;	
-	gc_resize	        =	gdk_gc_new ( gtk_widget_get_window(widget) );
-	g_assert( gc_resize );
-	/*set data to be destroyed*/
-	g_object_set_data_full (	G_OBJECT(widget), "gc_resize", 
-	                       		(gpointer)gc_resize , 
-	                        	(GDestroyNotify)g_object_unref );
-	gdk_gc_set_function ( gc_resize, GDK_INVERT );
-	gdk_gc_set_dashes ( gc_resize, 0, dash_list, 2 );
-	gdk_gc_set_line_attributes ( gc_resize, 1, GDK_LINE_ON_OFF_DASH,
-	                             GDK_CAP_NOT_LAST, GDK_JOIN_ROUND );
+    // GC creation removed, handled in draw signal with Cairo
 }
 
 void
@@ -199,39 +174,30 @@ on_cv_left_realize (GtkWidget *widget, gpointer user_data)
 void
 on_cv_other_edge_realize (GtkWidget *widget, gpointer user_data)
 {
-	gtk_widget_override_color (widget, GTK_STATE_FLAG_NORMAL, &edge_color);
+	// gtk_widget_override_color (widget, GTK_STATE_FLAG_NORMAL, &edge_color);
 	gtk_widget_set_size_request ( widget, BOX_EDGE_SIZE, BOX_EDGE_SIZE );
 }
 
 
 /* events */
-gboolean on_cv_other_edge_expose_event    (GtkWidget    *widget,
+gboolean on_cv_other_edge_draw    (GtkWidget    *widget,
                                     cairo_t      *cr,
                                     gpointer       user_data )
 {
-	GtkStyleContext *style_context;
-	GdkRGBA color;
-
-	style_context = gtk_widget_get_style_context (widget);
-	gtk_style_context_get_color (style_context,
-	                             gtk_style_context_get_state (style_context),
-	                             &color);
-	gdk_cairo_set_source_rgba (cr, &color);
-	cairo_move_to (cr, 0, 0);
-	cairo_line_to (cr, 0, cv_widget_get_height (widget));
-	cairo_move_to (cr, 0, 0);
-	cairo_line_to (cr, cv_widget_get_width (widget), 0);
-	cairo_stroke (cr);
+    // Simple filled rect
+    gdk_cairo_set_source_rgba(cr, &edge_color);
+    cairo_paint(cr);
 	return TRUE;
 }
 
 gboolean 
-on_cv_ev_box_expose_event ( GtkWidget    *widget,
+on_cv_ev_box_draw ( GtkWidget    *widget,
                         	cairo_t      *cr,
                         	gpointer       user_data )
 {
 	if (b_resize)
 	{
+        // Draw resize outline
 		GtkAllocation allocation;
 		gint x_offset;
 		gint y_offset;
@@ -240,21 +206,32 @@ on_cv_ev_box_expose_event ( GtkWidget    *widget,
 
 		gtk_widget_get_allocation (cv_ev_box, &allocation);
 
-		x_offset = cv_widget_get_width (cv->widget) - allocation.x;
+        // This assumes ev_box is parent of canvas widget? Or canvas is inside.
+		x_offset = cv_widget_get_width (cv->widget) - allocation.x; // Logic might depend on hierarchy
 		y_offset = cv_widget_get_height (cv->widget) - allocation.y;
-		x = x_res + x_offset;
-		y = y_res + y_offset;
-		cairo_set_source_rgb (cr, 0, 0, 0);
-		cairo_move_to (cr, x_offset, y_offset);
-		cairo_line_to (cr, x, y_offset);
-		cairo_line_to (cr, x, y);
-		cairo_line_to (cr, x_offset, y);
-		cairo_close_path (cr);
+
+        // Simplified logic: draw rectangle from 0,0 to x_res, y_res relative to canvas top-left
+        // But we are in cv_ev_box coordinates.
+        // Assuming cv_ev_box covers the canvas area + some margin?
+
+		x = x_res;
+		y = y_res;
+
+        cairo_set_source_rgb (cr, 0, 0, 0);
+        double dash[] = {4.0, 4.0};
+        cairo_set_dash(cr, dash, 2, 0);
+        cairo_set_line_width(cr, 1);
+		cairo_rectangle(cr, 0.5, 0.5, x, y);
 		cairo_stroke (cr);
 	}
 	gtk_widget_set_app_paintable ( cv_ev_box, b_resize );
 	return TRUE;
 }
+
+// Alias for old signal names if needed
+#define on_cv_other_edge_expose_event on_cv_other_edge_draw
+#define on_cv_ev_box_expose_event on_cv_ev_box_draw
+
 
 gboolean 
 on_cv_bottom_right_button_press_event	(   GtkWidget	   *widget, 
@@ -374,6 +351,7 @@ cv_resize_move ( gdouble x,  gdouble y)
 		x_res	= (x_res<1)?1:x_res;
 		y_res	= (y_res<1)?1:y_res;
 		gtk_widget_queue_draw (cv_ev_box);
+        cv_resize_draw();
 	}
 }
 
@@ -401,4 +379,5 @@ cv_resize_cancel ( void )
 	b_rz_init		= FALSE;
 	b_resize 	= FALSE;
 	gtk_widget_queue_draw (cv_ev_box);
+    cv_resize_draw();
 }

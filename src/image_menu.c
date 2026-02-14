@@ -3,24 +3,11 @@
 	Copyright (C) Juan Balderas 2010
 
 	image_menu.c is part of mate-paint.
-
-	mate-paint is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	mate-paint is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
 
 #include <gtk/gtk.h>
 #include <stdlib.h>
-#include <X11/Xlib.h>
+// #include <X11/Xlib.h> // Removing direct X11 dep if possible, or keeping it but checking build
 #include <ctype.h>
 
 #include "common.h"
@@ -47,14 +34,6 @@ typedef struct{
 	GPEffectType	effect;
 	gint			degrees;
 }GPFlipRotateDlg;
-
-//typedef struct{
-//	gdouble w; /* Image width in pixels */
-//	gdouble h; /* Image height in pixels */
-//	guint vdpi; /* Vertical dpi */
-//	guint hdpi; /* Horizontal dpi */
-//	gboolean color;
-//}GPAttributesDlg;
 
 static void get_dpi(gint *x, gint *y);
 static void attributes_dlg_display_size(guint type, gboolean from_drawable);
@@ -130,6 +109,10 @@ on_menu_flip_rotate_activate ( GtkMenuItem *menuitem, gpointer user_data )
     		rect.width = gdk_pixbuf_get_width (pixbuf);
     		rect.height = gdk_pixbuf_get_height (pixbuf);
     		printf("old w: %d, h: %d\n", rect.width, rect.height);
+
+            // Undo logic needs update if we change canvas size/orientation?
+            // Yes, undo_add handles it if we pass correct rect.
+
     		image = gp_image_new_from_pixbuf ( pixbuf, TRUE );
     		g_object_unref ( pixbuf );
 
@@ -141,6 +124,8 @@ on_menu_flip_rotate_activate ( GtkMenuItem *menuitem, gpointer user_data )
 	    			gp_image_flip(image, m_fr.effect);
 	    			break;
 	    		case GP_ROTATE:
+                    // Rotating canvas changes dimensions usually?
+                    // gp_image_rotate handles it.
 	    			undo_add (&rect, NULL, NULL, TOOL_ROTATE_CANVAS );
 	    			gp_image_rotate(image, m_fr.degrees);
 	    			break;
@@ -266,10 +251,15 @@ void on_menu_invert_colors_activate ( GtkMenuItem *menuitem, gpointer user_data 
 	{
 		/* Apply effect to canvas */
 		printf("on_menu_invert_colors_activate()\n");
-		image = gp_image_new_from_pixmap( cv->pixmap, NULL, TRUE);
+        // Get pixbuf from surface instead of pixmap
+		image = gp_image_new_from_surface( cv->surface, NULL, TRUE);
 		gp_image_invert_colors ( image);
 
-		gdk_drawable_get_size(cv->pixmap, &rect.width, &rect.height);
+        if (cv->surface) {
+            rect.width = cairo_image_surface_get_width(cv->surface);
+            rect.height = cairo_image_surface_get_height(cv->surface);
+        }
+
 		undo_add (&rect, NULL, NULL, TOOL_CLEAR_CANVAS );
 		
 		pixbuf = gp_image_get_pixbuf ( image );
@@ -292,17 +282,21 @@ void on_menu_clear_image_activate ( GtkMenuItem *menuitem, gpointer user_data )
 	g_return_if_fail(!gp_selection_query() );
 	
 	cv = cv_get_canvas ( );
-	gdk_drawable_get_size(cv->pixmap, &rect.width, &rect.height);
+    if (cv->surface) {
+        rect.width = cairo_image_surface_get_width(cv->surface);
+        rect.height = cairo_image_surface_get_height(cv->surface);
+    }
 
 	undo_add (&rect, NULL, NULL, TOOL_CLEAR_CANVAS );
 	
 	/* "Clear" canvas with bg color */
-	gdk_draw_rectangle(cv->pixmap, cv->gc_bg, TRUE, 0, 0,
-					   rect.width, rect.height);
-
-	pixbuf = cv_get_pixbuf ( );
-	cv_set_pixbuf ( pixbuf );
-	g_object_unref ( pixbuf );
+    if (cv->surface) {
+        cairo_t *cr = cairo_create(cv->surface);
+        gdk_cairo_set_source_rgba(cr, &cv->color_bg);
+        cairo_paint(cr);
+        cairo_destroy(cr);
+        gtk_widget_queue_draw(cv->widget);
+    }
 }
 
 /************** Toggle opaque/transparent **********************************/
@@ -357,7 +351,13 @@ void on_menu_attributes_activate ( GtkMenuItem *menuitem, gpointer user_data )
 	height = GTK_WIDGET (g_object_get_data(G_OBJECT(cv->widget),
 							"attributes_entry2"));
 
-	gdk_drawable_get_size(cv->pixmap, &w, &h);
+    if (cv->surface) {
+        w = cairo_image_surface_get_width(cv->surface);
+        h = cairo_image_surface_get_height(cv->surface);
+    } else {
+        w = 0; h = 0;
+    }
+
 	ow = (double)w ; oh = (double)h;
 
 	m_prev_unit = px;
@@ -481,13 +481,18 @@ static void attributes_dlg_display_size(guint type, gboolean from_drawable)
 	gtk_entry_set_max_length (GTK_ENTRY (entry_width), 5);
 	gtk_entry_set_max_length (GTK_ENTRY (entry_height), 5);
 
-	get_dpi(&vdpi, &hdpi);
+	get_dpi((gint*)&vdpi, (gint*)&hdpi); // cast to silence warning if needed, or update signature
 	dvdpi = (gdouble)vdpi; dhdpi = (gdouble)hdpi;
 
 	/* Display from drawable's size */
 	if(from_drawable)
 	{
-		gdk_drawable_get_size(cv->pixmap, (gint *)&w, (gint *)&h);
+		if (cv->surface) {
+            w = cairo_image_surface_get_width(cv->surface);
+            h = cairo_image_surface_get_height(cv->surface);
+        } else {
+            w = 0; h = 0;
+        }
 		dw = (gdouble)w ; dh = (gdouble)h ;
 	}
 	else
@@ -600,29 +605,12 @@ gboolean on_attributes_entry_key_press_event(GtkWidget *widget,
  */
 static void get_dpi(gint *x, gint *y)
 {
-	double xres, yres;
-	Display *dpy;
-	char *displayname = NULL;
-	int scr = 0; /* Screen number */
+	/* Use GdkScreen for DPI */
+    GdkScreen *screen = gdk_screen_get_default();
 
-	g_return_if_fail((NULL != x) && (NULL != y));
+    gdouble dpi = gdk_screen_get_resolution(screen);
+    if (dpi < 0) dpi = 96.0;
 
-	dpy = XOpenDisplay (displayname);
-
-	/*
-     * there are 2.54 centimeters to an inch; so there are 25.4 millimeters.
-     *
-     *     dpi = N pixels / (M millimeters / (25.4 millimeters / 1 inch))
-     *         = N pixels / (M inch / 25.4)
-     *         = N * 25.4 pixels / M inch
-     */
-    xres = ((((double) DisplayWidth(dpy,scr)) * 25.4) / 
-	    ((double) DisplayWidthMM(dpy,scr)));
-    yres = ((((double) DisplayHeight(dpy,scr)) * 25.4) / 
-	    ((double) DisplayHeightMM(dpy,scr)));
-
-	*x = (int) (xres + 0.5);
-	*y = (int) (yres + 0.5);
-
-	XCloseDisplay (dpy);
+	*x = (int) (dpi + 0.5);
+	*y = (int) (dpi + 0.5);
 }

@@ -6,22 +6,6 @@
  *  <rogerioferro@gmail.com>
  ****************************************************************************/
 
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
-
 #include "selection.h"
 #include "cv_drawing.h"
 #include "gp-image.h"
@@ -309,10 +293,6 @@ gboolean gp_selection_create (GdkPoint *s, GdkPoint *e, GdkPixbuf *pixbuf)
 	return TRUE;
 }
 
-/* button press ---+----gp_selection_set_active ( FALSE );
- *					`+--gp_selection_set_active ( TRUE );
- * double click -> gp_selection_set_floating ( FALSE );
- */
 void
 gp_selection_set_floating ( gboolean floating )
 {
@@ -333,11 +313,12 @@ gp_selection_set_floating ( gboolean floating )
             printf("gp_selection_set_floating() TRUE\n");
             if ( m_priv->image != NULL )
             {
+                cairo_t *cr = cairo_create(cv->surface);
                 gp_image_draw ( m_priv->image,
-                                cv->pixmap,
-                                cv->gc_fg,
+                                cr,
                                 rect.x, rect.y,
-                                rect.width, rect.height );            
+                                rect.width, rect.height );
+                cairo_destroy(cr);
                 destroy_image ();
             }
         }
@@ -348,18 +329,7 @@ gp_selection_set_floating ( gboolean floating )
             /* Create selection from a pixbuf */
             if(GDK_IS_PIXBUF(m_priv->pb_clipboard))
             {
-            	GdkPixmap *pm;
-            	gint w, h;
-
-            	w = gdk_pixbuf_get_width(m_priv->pb_clipboard);
-				h = gdk_pixbuf_get_height(m_priv->pb_clipboard);
-            	
-                pm = gdk_pixmap_new (gtk_widget_get_window(cv->widget), w, h, -1);
-            	gdk_draw_pixbuf (pm, cv->gc_fg, m_priv->pb_clipboard, 0, 0,
-								 0, 0, w, h, GDK_RGB_DITHER_NONE, 0, 0);
-				
-				m_priv->image = gp_image_new_from_pixmap ( pm, &rect, TRUE );
-            	g_object_unref(pm);
+                m_priv->image = gp_image_new_from_pixbuf ( m_priv->pb_clipboard, TRUE );
             	g_object_unref(m_priv->pb_clipboard);
             	m_priv->pb_clipboard = NULL;
             }
@@ -371,16 +341,22 @@ gp_selection_set_floating ( gboolean floating )
             	/* Save all pixmap so redraw where selection was copied from
             	 * and where sel will be pasted - which we don't know where
             	 * that will be. */
-            	gdk_drawable_get_size (cv->pixmap, &undo_area.width, &undo_area.height);
+                if (cv->surface) {
+                    undo_area.width = cairo_image_surface_get_width(cv->surface);
+                    undo_area.height = cairo_image_surface_get_height(cv->surface);
+                }
             	undo_add ( &undo_area, NULL, NULL, TOOL_RECT_SELECT);
 
-            	m_priv->image = gp_image_new_from_pixmap ( cv->pixmap, &rect, TRUE );
+		m_priv->image = gp_image_new_from_surface ( cv->surface, &rect, TRUE );
             	
             	printf("   x: %d, y: %d, w: %d, h: %d\n", rect.x, rect.y,
             											  rect.width, rect.height);
 
-            	gdk_draw_rectangle ( cv->pixmap, cv->gc_bg, TRUE, 
-                                     rect.x, rect.y, rect.width, rect.height ); 
+                cairo_t *cr = cairo_create(cv->surface);
+                gdk_cairo_set_source_rgba(cr, &cv->color_bg);
+                cairo_rectangle(cr, rect.x, rect.y, rect.width, rect.height);
+                cairo_fill(cr);
+                cairo_destroy(cr);
             }       
         	/* Add transparancy if necessary */
         	if(cv->transparent)
@@ -484,83 +460,33 @@ gp_selection_do_action ( GdkPoint *p )
 
 
 static void 
-draw_sel_box ( GdkDrawable *drawing, GdkGC *gc, GpSelBox *box )
+draw_sel_box ( cairo_t *cr, GpSelBox *box )
 {
     gint x,y,w,h;
     x = box->p0.x;
     y = box->p0.y;
     w = (box->p1.x - x + 1);
     h = (box->p1.y - y + 1);
-    gdk_draw_rectangle ( drawing, gc, TRUE, 
-                         x, y, w, h);
+    cairo_rectangle(cr, x, y, w, h);
+    cairo_fill(cr);
 }
 
 static void
-draw_top_line ( GdkDrawable *drawing, GdkGC *gc )
-{
-    GpSelBox *tlbox = &m_priv->boxes[SEL_TOP_LEFT];
-    GpSelBox *tmbox = &m_priv->boxes[SEL_TOP_MID];
-    GpSelBox *trbox = &m_priv->boxes[SEL_TOP_RIGHT];
-    gdk_draw_line ( drawing, gc, tlbox->p1.x+1, tlbox->p0.y, 
-                                 tmbox->p0.x-1, tmbox->p0.y );
-    gdk_draw_line ( drawing, gc, tmbox->p1.x+1, tmbox->p0.y,
-                                 trbox->p0.x-1, trbox->p0.y );
-}
-
-static void
-draw_right_line ( GdkDrawable *drawing, GdkGC *gc )
-{
-    GpSelBox *trbox = &m_priv->boxes[SEL_TOP_RIGHT];
-    GpSelBox *mrbox = &m_priv->boxes[SEL_MID_RIGHT];
-    GpSelBox *brbox = &m_priv->boxes[SEL_BOTTOM_RIGHT];
-    gdk_draw_line ( drawing, gc, trbox->p1.x, trbox->p1.y+1, 
-                                 mrbox->p1.x, mrbox->p0.y-1);
-    gdk_draw_line ( drawing, gc, mrbox->p1.x, mrbox->p1.y+1,
-                                 brbox->p1.x, brbox->p0.y-1 );
-}
-
-
-static void
-draw_left_line ( GdkDrawable *drawing, GdkGC *gc )
-{
-    GpSelBox *tlbox = &m_priv->boxes[SEL_TOP_LEFT];
-    GpSelBox *mlbox = &m_priv->boxes[SEL_MID_LEFT];
-    GpSelBox *blbox = &m_priv->boxes[SEL_BOTTOM_LEFT];
-    gdk_draw_line ( drawing, gc, tlbox->p0.x, tlbox->p1.y+1, 
-                                 mlbox->p0.x, mlbox->p0.y-1 );
-    gdk_draw_line ( drawing, gc, mlbox->p0.x, mlbox->p1.y+1,
-                                 blbox->p0.x, blbox->p0.y-1 );
-}
-
-static void
-draw_bottom_line ( GdkDrawable *drawing, GdkGC *gc )
-{
-    GpSelBox *brbox = &m_priv->boxes[SEL_BOTTOM_RIGHT];
-    GpSelBox *bmbox = &m_priv->boxes[SEL_BOTTOM_MID];
-    GpSelBox *blbox = &m_priv->boxes[SEL_BOTTOM_LEFT];
-    gdk_draw_line ( drawing, gc, brbox->p0.x-1, brbox->p1.y, 
-                                 bmbox->p1.x+1, bmbox->p1.y );
-    gdk_draw_line ( drawing, gc, bmbox->p0.x-1, bmbox->p1.y,
-                                 blbox->p1.x+1, blbox->p1.y );
-}
-
-static void
-draw_borders ( GdkDrawable *drawing, GdkGC *gc )
+draw_borders ( cairo_t *cr )
 {
     GpSelBoxEnum box;
+
+    // Draw handles (filled rectangles)
+    cairo_set_source_rgb(cr, 0, 0, 0); // Black handles
     for ( box = SEL_TOP_LEFT; box < SEL_CLIPBOX; box++ )
     {
-        draw_sel_box ( drawing, gc, &m_priv->boxes[box] );
+        draw_sel_box ( cr, &m_priv->boxes[box] );
     }
-    draw_top_line       ( drawing, gc );
-    draw_right_line     ( drawing, gc );
-    draw_bottom_line    ( drawing, gc );
-    draw_left_line      ( drawing, gc );
 }
 
 
 void
-gp_selection_draw ( GdkDrawable *gdkd )
+gp_selection_draw ( cairo_t *cr )
 {
     g_return_if_fail ( m_priv != NULL );
     if ( m_priv->active )
@@ -568,31 +494,32 @@ gp_selection_draw ( GdkDrawable *gdkd )
         GpSelBox *clipbox   = &m_priv->boxes[SEL_CLIPBOX];
         gint x,y,w,h;
         gp_canvas *cv;
-        gint8 dash_list[]	=	{ 3, 3 };
-        GdkGC *gc;
-
         cv = cv_get_canvas ();
-        gc	=	gdk_gc_new ( gtk_widget_get_window(cv->widget) );
-        gdk_gc_set_function ( gc, GDK_INVERT );
-        gdk_gc_set_dashes ( gc, 0, dash_list, 2 );
-        gdk_gc_set_line_attributes ( gc, 1, GDK_LINE_ON_OFF_DASH,
-                                     GDK_CAP_NOT_LAST, GDK_JOIN_ROUND );
 
         x = MIN(clipbox->p0.x,clipbox->p1.x);
         y = MIN(clipbox->p0.y,clipbox->p1.y);
         w = ABS(clipbox->p1.x - clipbox->p0.x)+1;
         h = ABS(clipbox->p1.y - clipbox->p0.y)+1;
 
+        cairo_t *cr_draw = cr;
+        gboolean destroy_cr = FALSE;
+
+        if (cr == NULL) {
+            if (cv->surface) {
+                cr_draw = cairo_create(cv->surface);
+                destroy_cr = TRUE;
+            } else {
+                return;
+            }
+        }
 
         if ( m_priv->floating )
         {
-            cairo_t     *cr;
-            cr  =   gdk_cairo_create ( cv->drawing );
-            cairo_set_line_width (cr, 1.0);
-            cairo_set_source_rgba (cr, 0.7, 0.9, 1.0, 0.3);
-            cairo_rectangle ( cr, x, y, w, h); 
-            cairo_fill (cr);
-            cairo_destroy (cr);
+            // Preview
+            cairo_set_line_width (cr_draw, 1.0);
+            cairo_set_source_rgba (cr_draw, 0.7, 0.9, 1.0, 0.3);
+            cairo_rectangle ( cr_draw, x, y, w, h);
+            cairo_fill (cr_draw);
         }
         else
         {
@@ -611,39 +538,32 @@ gp_selection_draw ( GdkDrawable *gdkd )
             	
             }
             
-            /* Had to add this here because the selection
-             * was being erased when changing tools. Don't
-             * know if this was by design or not, but just
-             * doesn't seem right. This is just temporary
-             * until we find out.
-             */
-            if(GDK_IS_DRAWABLE(gdkd)){
-            	gp_image_draw ( m_priv->image,
-                            gdkd,
-                            cv->gc_fg,
+            gp_image_draw ( m_priv->image,
+                            cr_draw,
                             x,y,w,h );
-            }
-            else{
-            	gp_image_draw ( m_priv->image,
-                            cv->drawing,
-                            cv->gc_fg,
-                            x,y,w,h );
-        	}
         }
 
 
         if ( m_priv->show_borders )
         {
-            draw_borders ( cv->drawing, gc );
-        }
-        else
-        {
-            gdk_draw_rectangle ( cv->drawing, gc, FALSE, 
-                                 x, y, w-1, h-1 );
-        }
+            // Dashed outline
+            double dash[] = {3.0, 3.0};
+            cairo_set_line_width(cr_draw, 1);
+            cairo_set_dash(cr_draw, dash, 2, 0);
+            cairo_set_source_rgb(cr_draw, 0, 0, 0); // Black dashed
+            cairo_rectangle(cr_draw, x+0.5, y+0.5, w-1, h-1);
+            cairo_stroke(cr_draw);
 
+            cairo_set_dash(cr_draw, dash, 2, 3.0); // Offset
+            cairo_set_source_rgb(cr_draw, 1, 1, 1); // White dashed
+            cairo_rectangle(cr_draw, x+0.5, y+0.5, w-1, h-1);
+            cairo_stroke(cr_draw);
+
+            cairo_set_dash(cr_draw, NULL, 0, 0); // Solid for handles
+            draw_borders ( cr_draw );
+        }
         
-        g_object_unref ( gc );
+        if (destroy_cr) cairo_destroy(cr_draw);
         
     }    
 }
@@ -656,14 +576,9 @@ static gboolean gp_selection_get_bg_color_rgb(guchar *r, guchar *g, guchar *b)
 	cv = cv_get_canvas ();
 	if((cv) && (r) && (g) && (b))
 	{
-		GdkGCValues values;
-		
-		gdk_gc_get_values (cv->gc_bg, &values);
-
-		*r = values.foreground.red >> 8;
-		*g = values.foreground.green >> 8;
-		*b = values.foreground.blue >> 8;
-
+		*r = (guchar)(cv->color_bg.red * 255);
+		*g = (guchar)(cv->color_bg.green * 255);
+		*b = (guchar)(cv->color_bg.blue * 255);
 		return TRUE;
 	}
 	
@@ -707,8 +622,8 @@ void gp_selection_rotate(GdkPixbufRotation angle)
 			GdkPixbuf *pixbuf;
 			GdkPoint s, e;
 			GpSelBox *clipbox;
-			GpImage *new_image;
-			gp_canvas *cv = cv_get_canvas ();
+			// GpImage *new_image;
+			// gp_canvas *cv = cv_get_canvas ();
 
 			gp_image_rotate ( m_priv->image, angle );
 			pixbuf = gp_image_get_pixbuf(m_priv->image);

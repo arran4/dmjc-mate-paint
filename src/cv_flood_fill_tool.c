@@ -3,19 +3,6 @@
     Contributed by Juan Balderas
 
     This file is part of mate-paint.
-
-    mate-paint is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    mate-paint is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with mate-paint.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
  
  #include <gtk/gtk.h>
@@ -25,30 +12,28 @@
 #include "cv_drawing.h"
 #include "pixbuf_util.h"
 #include "undo.h"
-//#include "color.h"
 
-guint get_fg_color_from_gc(GdkGC *gc);
+guint get_fg_color_from_rgba(GdkRGBA *color);
 
 /*Member functions*/
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
-static void		save_undo		( void );
+// static void		save_undo		( void );
 
 /*private data*/
 typedef struct {
 	gp_tool			tool;
 	gp_canvas *		cv;
-	GdkGC *			gc;
 	gint 			x0,y0;
 	guint			button;
 	gboolean 		is_draw;
 	guint			fill_color;
 	GdkRectangle	rect;
-	GdkPixmap *		pixmap;
+    GdkRGBA         color;
 } private_data;
 
 static private_data		*m_priv = NULL;
@@ -60,7 +45,6 @@ create_private_data( void )
 	{
 		m_priv = g_new0 (private_data,1);
 		m_priv->cv		=	NULL;
-		m_priv->gc		=	NULL;
 		m_priv->button	=	0;
 		m_priv->is_draw	=	FALSE;
 	}
@@ -95,11 +79,11 @@ button_press ( GdkEventButton *event )
 	{
 		if ( event->button == LEFT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_fg;
+            m_priv->color = m_priv->cv->color_fg;
 		}
 		else if ( event->button == RIGHT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_bg;
+            m_priv->color = m_priv->cv->color_bg;
 		}
 
 		m_priv->is_draw = !m_priv->is_draw;
@@ -109,7 +93,7 @@ button_press ( GdkEventButton *event )
 		m_priv->y0 = (gint)event->y;
 		if( !m_priv->is_draw ) gtk_widget_queue_draw ( m_priv->cv->widget );
 
-		m_priv->fill_color = get_fg_color_from_gc(m_priv->gc);
+		m_priv->fill_color = get_fg_color_from_rgba(&m_priv->color);
 	}
 	return TRUE;
 }
@@ -118,7 +102,6 @@ gboolean
 button_release ( GdkEventButton *event )
 {
 	GdkPixbuf *pixbuf;
-	gint width, height;
 
 	if ( event->type == GDK_BUTTON_RELEASE )
 	{
@@ -126,9 +109,11 @@ button_release ( GdkEventButton *event )
 		{
 			if( m_priv->is_draw )
 			{
+                // Get pixbuf from surface
 				pixbuf = cv_get_pixbuf ( );
 				if(GDK_IS_PIXBUF ( pixbuf ) )
 				{
+                    // Ensure alpha
 					if(!gdk_pixbuf_get_has_alpha ( pixbuf ) )
 					{
 						GdkPixbuf *tmp ;
@@ -137,27 +122,18 @@ button_release ( GdkEventButton *event )
 						pixbuf = tmp;
 					}
 
-					gdk_drawable_get_size(GDK_DRAWABLE( m_priv->cv->pixmap ),
-                                                         &width,
-                                                         &height);
-					/* Pixbuf before changes */
-					m_priv->pixmap = gdk_pixmap_new(GDK_DRAWABLE( m_priv->cv->pixmap ),
-                                                         width,
-                                                         height,
-                                                         -1);
-					gdk_draw_pixbuf(m_priv->pixmap, m_priv->gc, pixbuf, 0, 0, 0, 0,
-                                    -1, -1, GDK_RGB_DITHER_NONE, 0, 0);
-					
-					m_priv->rect = fill_draw( GDK_DRAWABLE( m_priv->cv->pixmap ), 
-				    	      m_priv->gc, 
+                    // Flood fill directly on pixbuf
+					m_priv->rect = fill_draw( pixbuf,
 				    	      m_priv->fill_color, 
 				    	      m_priv->x0, 
 			    		      m_priv->y0);
 					
+                    // Write back to surface
+                    cv_set_pixbuf(pixbuf);
+
 					g_object_unref(pixbuf);
 
-					save_undo ();
-					g_object_unref(m_priv->pixmap);
+					// save_undo ();
 					
 					file_set_unsave ();
 				}
@@ -180,41 +156,17 @@ button_motion ( GdkEventMotion *event )
 }
 
 void	
-draw ( void )
+draw ( cairo_t *cr )
 {
-	GdkPixbuf *pixbuf;
-
-	if ( m_priv->is_draw )
-	{
-		pixbuf = cv_get_pixbuf ( );
-		if(GDK_IS_PIXBUF(pixbuf))
-		{
-			if(!gdk_pixbuf_get_has_alpha (pixbuf))
-			{
-				GdkPixbuf *tmp ;
-
-				tmp = gdk_pixbuf_add_alpha( pixbuf, FALSE, 0, 0, 0 );
-				g_object_unref(pixbuf);
-				pixbuf = tmp;
-			}
-
-			fill_draw( GDK_DRAWABLE( m_priv->cv->pixmap ), 
-			          m_priv->gc, 
-			          m_priv->fill_color, 
-			          m_priv->x0, 
-			          m_priv->y0);
-			g_object_unref(pixbuf);
-
-			file_set_unsave ();
-		}
-	}
+    // Nothing to draw during preview
 }
 
 void reset ( void )
 {
 	GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_CROSSHAIR);
 	g_assert(cursor);
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref ( cursor );
 	m_priv->is_draw = FALSE;
 }
@@ -225,26 +177,12 @@ void destroy ( gpointer data  )
 	g_print("flood fill tool destroy\n");
 }
 
-guint get_fg_color_from_gc(GdkGC *gc)
+guint get_fg_color_from_rgba(GdkRGBA *color)
 {
-	GdkGCValues values;
-	guint color = 0;
-
-	gdk_gc_get_values(gc, &values);
-
-	values.foreground.red /= 256;
-	values.foreground.green /= 256;
-	values.foreground.blue /= 256;
-	
-	color = col_rgba((guchar)values.foreground.red,
-	            (guchar)values.foreground.green,
-	            (guchar)values.foreground.blue, 0xFF);
-	
-	return color;
-}
-
-static void     
-save_undo ( void )
-{
-	undo_add ( &m_priv->rect, NULL, m_priv->pixmap, TOOL_BUCKET_FILL );
+	guint c = 0;
+	c = col_rgba((guchar)(color->red * 255),
+	            (guchar)(color->green * 255),
+	            (guchar)(color->blue * 255),
+                (guchar)(color->alpha * 255));
+	return c;
 }

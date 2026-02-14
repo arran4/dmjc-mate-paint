@@ -5,22 +5,6 @@
  *  Copyright  2009  rogerio
  *  <rogerio@<host>>
  ****************************************************************************/
-
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
  
  #include <gtk/gtk.h>
 
@@ -31,22 +15,21 @@
 #include "gp_point_array.h"
 
 
-
-
 /*Member functions*/
 static gboolean	button_press	( GdkEventButton *event );
 static gboolean	button_release	( GdkEventButton *event );
 static gboolean	button_motion	( GdkEventMotion *event );
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 static void		reset			( void );
 static void		destroy			( gpointer data  );
-static void     save_undo       ( void );
+static void     draw_line_cairo ( cairo_t *cr );
+// static void     save_undo       ( void );
 
 /*private data*/
 typedef struct {
 	gp_tool			tool;
 	gp_canvas *		cv;
-	GdkGC *			gc;
+    GdkRGBA         color;
 	gint 			x0,y0,x1,y1;
 	guint			button;
 	gboolean 		is_draw;
@@ -61,7 +44,6 @@ create_private_data( void )
 	{
 		m_priv = g_slice_new0 (private_data);
 		m_priv->cv		=	NULL;
-		m_priv->gc		=	NULL;
 		m_priv->button	=	0;
 		m_priv->is_draw	=	FALSE;
 	}
@@ -73,9 +55,6 @@ destroy_private_data( void )
 	g_slice_free (private_data, m_priv);
 	m_priv = NULL;
 }
-
-
-
 
 gp_tool * 
 tool_line_init ( gp_canvas * canvas )
@@ -91,18 +70,18 @@ tool_line_init ( gp_canvas * canvas )
 	return &m_priv->tool;
 }
 
-gboolean
+static gboolean
 button_press ( GdkEventButton *event )
 {
 	if ( event->type == GDK_BUTTON_PRESS )
 	{
 		if ( event->button == LEFT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_fg;
+            m_priv->color = m_priv->cv->color_fg;
 		}
 		else if ( event->button == RIGHT_BUTTON )
 		{
-			m_priv->gc = m_priv->cv->gc_bg;
+            m_priv->color = m_priv->cv->color_bg;
 		}
 		m_priv->is_draw = !m_priv->is_draw;
 		if( m_priv->is_draw ) 
@@ -116,7 +95,7 @@ button_press ( GdkEventButton *event )
 	return TRUE;
 }
 
-gboolean
+static gboolean
 button_release ( GdkEventButton *event )
 {
 	if ( event->type == GDK_BUTTON_RELEASE )
@@ -124,9 +103,13 @@ button_release ( GdkEventButton *event )
 		if( m_priv->button == event->button )
 		{
 			if( m_priv->is_draw )
-             {
-                save_undo ();
-				gdk_draw_line ( m_priv->cv->pixmap, m_priv->gc, m_priv->x0, m_priv->y0, m_priv->x1, m_priv->y1 );
+            {
+                // save_undo ();
+                if (m_priv->cv->surface) {
+                    cairo_t *cr = cairo_create(m_priv->cv->surface);
+                    draw_line_cairo(cr);
+                    cairo_destroy(cr);
+                }
 				file_set_unsave ();
     		}
 			gtk_widget_queue_draw ( m_priv->cv->widget );
@@ -136,7 +119,7 @@ button_release ( GdkEventButton *event )
 	return TRUE;
 }
 
-gboolean
+static gboolean
 button_motion ( GdkEventMotion *event )
 {
 	if( m_priv->is_draw )
@@ -148,53 +131,40 @@ button_motion ( GdkEventMotion *event )
 	return TRUE;
 }
 
-void	
-draw ( void )
+static void
+draw ( cairo_t *cr )
 {
 	if ( m_priv->is_draw )
 	{
-        gdk_draw_line ( m_priv->cv->drawing, m_priv->gc, m_priv->x0, m_priv->y0, m_priv->x1, m_priv->y1 );
+        draw_line_cairo(cr);
 	}
 }
 
-void reset ( void )
+static void reset ( void )
 {
-    GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), GDK_DOTBOX);
+    GdkDisplay *display = gdk_display_get_default();
+    GdkCursor *cursor = gdk_cursor_new_for_display (display, GDK_DOTBOX);
 	g_assert(cursor);
-	gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+    if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	g_object_unref( cursor );
 	m_priv->is_draw = FALSE;
 }
 
-void destroy ( gpointer data  )
+static void destroy ( gpointer data  )
 {
 	destroy_private_data ();
 	g_print("line tool destroy\n");
 }
 
-static void     
-save_undo ( void )
-{
-    GdkRectangle    rect;
-    GdkRectangle    rect_max;
-    GdkBitmap       *mask;
-    GdkGC	        *gc_mask;
-    gp_point_array  *pa  = gp_point_array_new ();
+static void draw_line_cairo(cairo_t *cr) {
+    gdk_cairo_set_source_rgba(cr, &m_priv->color);
+    cairo_set_line_width(cr, m_priv->cv->line_width);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 
-    gp_point_array_append (pa, m_priv->x0, m_priv->y0 );
-    gp_point_array_append (pa, m_priv->x1, m_priv->y1 );
-
-    cv_get_rect_size ( &rect_max );
-    gp_point_array_get_clipbox ( pa, &rect, m_priv->cv->line_width, &rect_max );
-     
-    undo_create_mask ( rect.width, rect.height, &mask, &gc_mask );
-    gdk_draw_line ( mask, gc_mask, 
-                    m_priv->x0 - rect.x, m_priv->y0 - rect.y,
-                    m_priv->x1 - rect.x, m_priv->y1 - rect.y );
-    undo_add ( &rect, mask, NULL, TOOL_LINE );
-
-    gp_point_array_free (pa);
-    g_object_unref (gc_mask);
-    g_object_unref (mask);
+    cairo_move_to(cr, m_priv->x0 + 0.5, m_priv->y0 + 0.5);
+    cairo_line_to(cr, m_priv->x1 + 0.5, m_priv->y1 + 0.5);
+    cairo_stroke(cr);
 }
 
+// save_undo commented out

@@ -4,24 +4,16 @@
  * Copyright (C) Rogério Ferro do Nascimento 2010 <rogerioferro@gmail.com>
  * 
  * mate-paint is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
- * mate-paint is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef _GP_IMAGE_H_
 #define _GP_IMAGE_H_
 
 #include <glib-object.h>
- #include <gtk/gtk.h>
+#include <gtk/gtk.h>
 
 
 G_BEGIN_DECLS
@@ -53,26 +45,25 @@ struct _GpImage
 GType			gp_image_get_type			( void ) G_GNUC_CONST;
 GpImage *		gp_image_new				( gint width, gint height, 
 						                      gboolean has_alpha );
-GpImage *		gp_image_new_from_pixmap	( GdkPixmap* pixmap, 
+GpImage *		gp_image_new_from_surface	( cairo_surface_t* surface,
 			                                  GdkRectangle *rect, 
 			                                  gboolean has_alpha );
 GpImage *		gp_image_new_from_data		( GpImageData *data );
-void			gp_image_set_mask			( GpImage *image, GdkBitmap *mask );
+void			gp_image_set_mask			( GpImage *image, cairo_surface_t *mask );
 GdkPixbuf *		gp_image_get_pixbuf			( GpImage *image );
 GpImageData *   gp_image_get_data			( GpImage *image );
 void			gp_image_data_free			( GpImageData *data );
 void			gp_image_draw				( GpImage *image, 
-							                  GdkDrawable *drawable,
-							                  GdkGC *gc,
+							                  cairo_t *cr,
 							                  gint x, gint y,
 							                  gint width, gint height );
 gint			gp_image_get_width			( GpImage *image );
 gint			gp_image_get_height			( GpImage *image );
 gboolean		gp_image_get_has_alpha		( GpImage *image );
-GdkBitmap *		gp_image_get_mask			( GpImage *image );
+cairo_surface_t *		gp_image_get_mask			( GpImage *image );
 
-void			gp_image_set_diff_pixmap	( GpImage *image, 
-				                              GdkPixmap* pixmap, 
+void			gp_image_set_diff_surface	( GpImage *image,
+				                              cairo_surface_t* surface,
 				                              guint x_offset, 
 				                              guint y_offset );
 

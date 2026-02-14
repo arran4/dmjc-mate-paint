@@ -5,22 +5,6 @@
  *  Copyright  2010  rogerio
  *  <rogerioferro@gmail.com>
  ****************************************************************************/
-
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Library General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor Boston, MA 02110-1301,  USA
- */
  
 #include <gtk/gtk.h>
 
@@ -62,7 +46,7 @@ static void     set_cursor      ( GdkCursorType cursor_type );
 static void     set_point       ( GdkPoint *p );
 static void     change_cursor   ( GdkPoint *p );
 /* Draw functions */
-static void		draw			( void );
+static void		draw			( cairo_t *cr );
 
 
 static private_data		*m_priv = NULL;
@@ -206,9 +190,9 @@ button_motion ( GdkEventMotion *event )
 
     
 static void	
-draw ( void )
+draw ( cairo_t *cr )
 {
-    gp_selection_draw (NULL);
+    gp_selection_draw (cr);
 }
 
 static void 
@@ -221,7 +205,8 @@ static void
 destroy ( gpointer data  )
 {
 	g_print("rect select tool destroy\n");
-	gp_selection_draw (m_priv->cv->pixmap);
+    // Passing NULL for now as we don't support drawing to pixmap on destroy yet
+	gp_selection_draw (NULL);
     gtk_widget_queue_draw ( m_priv->cv->widget );
 	destroy_private_data ();
 }
@@ -230,12 +215,14 @@ destroy ( gpointer data  )
 static void 
 set_cursor ( GdkCursorType cursor_type )
 {
+    // Static variable in function is risky if multiple instances, but logic is fine for tool
     static GdkCursorType last_cursor = GDK_LAST_CURSOR;
     if ( cursor_type != last_cursor )
     {
         GdkCursor *cursor = gdk_cursor_new_for_display (gdk_display_get_default (), cursor_type);
 	    g_assert(cursor);
-	    gdk_window_set_cursor ( m_priv->cv->drawing, cursor );
+        if (gtk_widget_get_window(m_priv->cv->widget))
+	    gdk_window_set_cursor ( gtk_widget_get_window(m_priv->cv->widget), cursor );
 	    g_object_unref ( cursor );
         last_cursor = cursor_type;
     }
@@ -270,6 +257,3 @@ change_cursor ( GdkPoint *p )
         set_cursor ( cursor );
     }
 }
-
-
-

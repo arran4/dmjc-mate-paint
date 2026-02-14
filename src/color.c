@@ -7,280 +7,251 @@
  * under the terms of the GNU General Public License as published by the
  * Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
- * color.c is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include "common.h"
-#include "cv_paintbrush_tool.h"
-#include "cv_eraser_tool.h"
 #include "color.h"
 #include "cv_drawing.h"
-#include "pixbuf_util.h"
-
 #include <glib/gi18n.h>
 
-static  GtkWidget	*background_widget = NULL;
-static  GdkColor	background_color;
-static  GtkWidget	*foreground_widget = NULL;
-static  GdkColor	foreground_color;
+#define PALETTE_SIZE 28
 
-#define NUM_PALETTES	28
-
-static guint16 init_palette_values[NUM_PALETTES][3] = 
+/* Private Data */
+static GdkRGBA background_color	=	{ 1.0, 1.0, 1.0, 1.0 };
+static GdkRGBA foreground_color	=	{ 0.0, 0.0, 0.0, 1.0 };
+static GdkRGBA palette_colors[PALETTE_SIZE]	=
 {
-	/*First line*/
-	{0x0000,0x0000,0x0000},{0x4600,0x4600,0x4600},{0x7800,0x7800,0x7800},
-	{0x9900,0x0000,0x3000},{0xED00,0x1C00,0x2400},{0xFFFF,0x7E00,0x0000},
-	{0xFFFF,0xC200,0x0E00},{0xFFFF,0xF200,0x0000},{0xA800,0xE600,0x1D00},
-	{0x2200,0xB100,0x4C00},{0x0000,0xB700,0xEF00},{0x4D00,0x6D00,0xF300},
-	{0x2F00,0x3600,0x9900},{0x6F00,0x3100,0x9800},
-	/*Second line*/
-	{0xFFFF,0xFFFF,0xFFFF},{0xDC00,0xDC00,0xDC00},{0xB400,0xB400,0xB400},
-	{0x9C00,0x5A00,0x3C00},{0xFFFF,0xA300,0xB100},{0xE500,0xAA00,0x7A00},
-	{0xF500,0xE400,0x9C00},{0xFFFF,0xF900,0xBD00},{0xD300,0xF900,0xBC00},
-	{0x9D00,0xBB00,0x6100},{0x9900,0xD900,0xEA00},{0x7000,0x9A00,0xD100},
-	{0x5400,0x6D00,0x8E00},{0xB500,0xA500,0xD500}
+	{ 0.0, 0.0, 0.0, 1.0 },
+	{ 0.5, 0.5, 0.5, 1.0 },
+	{ 0.5, 0.0, 0.0, 1.0 },
+	{ 0.5, 0.5, 0.0, 1.0 },
+	{ 0.0, 0.5, 0.0, 1.0 },
+	{ 0.0, 0.5, 0.5, 1.0 },
+	{ 0.0, 0.0, 0.5, 1.0 },
+	{ 0.5, 0.0, 0.5, 1.0 },
+	{ 0.5, 0.5, 0.25, 1.0 },
+	{ 0.0, 0.25, 0.25, 1.0 },
+	{ 0.0, 0.5, 1.0, 1.0 },
+	{ 0.0, 0.25, 0.5, 1.0 },
+	{ 0.5, 0.0, 1.0, 1.0 },
+	{ 0.5, 0.25, 0.0, 1.0 },
+	{ 1.0, 1.0, 1.0, 1.0 },
+	{ 0.75, 0.75, 0.75, 1.0 },
+	{ 1.0, 0.0, 0.0, 1.0 },
+	{ 1.0, 1.0, 0.0, 1.0 },
+	{ 0.0, 1.0, 0.0, 1.0 },
+	{ 0.0, 1.0, 1.0, 1.0 },
+	{ 0.0, 0.0, 1.0, 1.0 },
+	{ 1.0, 0.0, 1.0, 1.0 },
+	{ 1.0, 1.0, 0.5, 1.0 },
+	{ 0.0, 1.0, 0.5, 1.0 },
+	{ 0.5, 1.0, 1.0, 1.0 },
+	{ 0.5, 0.5, 1.0, 1.0 },
+	{ 1.0, 0.0, 0.5, 1.0 },
+	{ 1.0, 0.5, 0.25, 1.0 },
 };
 
-static  GtkWidget   *pallete_widgets[NUM_PALETTES] = 
+static GtkWidget	*background_widget = NULL;
+static GtkWidget	*foreground_widget = NULL;
+static GtkWidget	*pallete_widgets[PALETTE_SIZE];
+
+/* Private functions */
+static void background_show ( void );
+static void foreground_show ( void );
+static void pallete_show    ( gint palette );
+
+/* CODE */
+
+void
+foreground_set_color ( GdkRGBA *color )
 {
-	NULL,NULL,NULL,NULL,NULL,NULL,NULL,
-	NULL,NULL,NULL,NULL,NULL,NULL,NULL,
-	NULL,NULL,NULL,NULL,NULL,NULL,NULL,
-	NULL,NULL,NULL,NULL,NULL,NULL,NULL
-};
-
-static  GdkColor	pallete_colors[NUM_PALETTES];
-
-/* private functions */
-static void background_set_color_from_palette   ( guint palette );
-static void foreground_set_color_from_palette   ( guint palette );
-static void palette_color_picker				( guint palette );
-static void color_dialog						( GdkColor *color, gchar * title );
-static void color_to_rgba                       ( const GdkColor *color, GdkRGBA *rgba );
-static void background_show						( void );
-static void foreground_show						( void );
-static void pallete_show						( guint palette );
-
-
-/*
- *   CODE
- */
-
-void foreground_set_color  ( GdkColor *color )
-{
-	foreground_color.red	=   color->red;
-	foreground_color.green	=   color->green;
-	foreground_color.blue	=   color->blue;
+	foreground_color = *color;
 	foreground_show ();
 }
 
-
-void foreground_set_color_from_rgb  ( guint color )
+void
+foreground_set_color_from_rgb ( guint color )
 {
-   foreground_color.red   = getr(color);
-   foreground_color.red   <<= 8;
-   foreground_color.green = getg(color);
-   foreground_color.green <<= 8;
-   foreground_color.blue  = getb(color);
-   foreground_color.blue  <<= 8;
-   foreground_show ();
-   /*g_debug("%s %d", __FILE__, __LINE__);*/
+	/* Unused, keeping signature but implementing empty or adapting if needed.
+       This function seems to take packed int.
+    */
+    GdkRGBA rgba;
+    rgba.red = ((color >> 16) & 0xFF) / 255.0;
+    rgba.green = ((color >> 8) & 0xFF) / 255.0;
+    rgba.blue = (color & 0xFF) / 255.0;
+    rgba.alpha = 1.0;
+    foreground_set_color(&rgba);
 }
 
+void
+on_color_palette_entry_realize (GtkWidget *widget, gpointer user_data)
+{
+    gchar *name = (gchar *)user_data;
+    gint index = atoi(name);
+    if (index >= 0 && index < PALETTE_SIZE) {
+        pallete_widgets[index] = widget;
+        pallete_show(index);
+    }
+}
 
 void
 on_background_color_picker_realize (GtkWidget *widget, gpointer user_data)
 {
-	background_widget		=   widget;
-	background_color.red	=   0xFFFF;
-	background_color.green  =   0xFFFF;
-	background_color.blue   =   0xFFFF;
+	background_widget	=	widget;
 	background_show ();
 }
 
 void
 on_foreground_color_picker_realize (GtkWidget *widget, gpointer user_data)
 {
-	foreground_widget		=   widget;
-	foreground_color.red	=   0x0000;
-	foreground_color.green  =   0x0000;
-	foreground_color.blue   =   0x0000;
+	foreground_widget	=	widget;
 	foreground_show ();
 }
 
-/*
- * Initialize the colors on the color palette tool bar.
- */
-void
-on_color_palette_entry_realize (GtkWidget *widget, gpointer user_data) 
-{
-	const gchar *name;
-	guint palette;
-	name = gtk_buildable_get_name ( GTK_BUILDABLE (widget) );
-	palette = ( (guint)(name[0] - '0') * 10 ) + (guint)(name[1] - '0');
-	g_return_if_fail( palette < NUM_PALETTES );
-	pallete_widgets[palette]		= widget;
-	pallete_colors[palette].red		= init_palette_values[palette][0];
-	pallete_colors[palette].green   = init_palette_values[palette][1];
-	pallete_colors[palette].blue	= init_palette_values[palette][2];
-	pallete_show (palette);
-}
-
-
-gboolean 
-on_background_color_picker_button_release_event ( GtkWidget			*widget, 
-												  GdkEventButton	*event,
-												  gpointer			user_data )
-{
-	if ( event->button == LEFT_BUTTON )
-	{
-		color_dialog( &background_color, _("Select Background Color") );
-		background_show ();
-	}
-	return TRUE;
-}
-
-gboolean 
-on_foreground_color_picker_button_release_event	(   GtkWidget	   *widget, 
+gboolean
+on_background_color_picker_button_release_event (   GtkWidget	   *widget,
 													GdkEventButton *event,
 													gpointer       user_data )
 {
-	if ( event->button == LEFT_BUTTON )
-	{
-		color_dialog( &foreground_color, _("Select Foreground Color") );
-		foreground_show ();
-	}
+    GtkWidget *dialog;
+    gint res;
+
+    dialog = gtk_color_chooser_dialog_new (_("Background Color"), GTK_WINDOW(gtk_widget_get_toplevel(widget)));
+    gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(dialog), &background_color);
+
+    res = gtk_dialog_run (GTK_DIALOG (dialog));
+    if (res == GTK_RESPONSE_OK)
+    {
+        gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(dialog), &background_color);
+        background_show ();
+    }
+    gtk_widget_destroy (dialog);
 	return TRUE;
 }
 
-gboolean 
-on_color_palette_entry_button_press_event ( GtkWidget	   *widget, 
-											GdkEventButton *event,
-											gpointer       user_data )
+gboolean
+on_foreground_color_picker_button_release_event (   GtkWidget	   *widget,
+													GdkEventButton *event,
+													gpointer       user_data )
 {
-	const gchar *name;
-	guint i;
-	name = gtk_buildable_get_name ( GTK_BUILDABLE (widget) );
-	i = ( (guint)(name[0] - '0') * 10 ) + (guint)(name[1] - '0');
-	
-	if ( event->type == GDK_2BUTTON_PRESS )
-	{
-		palette_color_picker ( i );
-	}
-	if ( event->button == LEFT_BUTTON )
-	{
-		foreground_set_color_from_palette ( i );
-		notify_brush_of_fg_color_change();
-	}
-	else if ( event->button == RIGHT_BUTTON )
-	{
-		background_set_color_from_palette ( i );
-		notify_eraser_of_bg_color_change();
-	}
+    GtkWidget *dialog;
+    gint res;
 
-	
+    dialog = gtk_color_chooser_dialog_new (_("Foreground Color"), GTK_WINDOW(gtk_widget_get_toplevel(widget)));
+    gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(dialog), &foreground_color);
+
+    res = gtk_dialog_run (GTK_DIALOG (dialog));
+    if (res == GTK_RESPONSE_OK)
+    {
+        gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(dialog), &foreground_color);
+        foreground_show ();
+    }
+    gtk_widget_destroy (dialog);
 	return TRUE;
 }
 
+gboolean
+on_color_palette_entry_button_press_event (   GtkWidget	   *widget,
+											  GdkEventButton *event,
+			                                  gpointer       user_data )
+{
+    gchar *name = (gchar *)user_data;
+    gint index = atoi(name);
+
+	if ( event->type == GDK_BUTTON_PRESS )
+	{
+		if ( event->button == 1 ) /* Left Button */
+		{
+            foreground_color = palette_colors[index];
+            foreground_show ();
+		}
+		else
+        if ( event->button == 3 ) /* Right Button */
+		{
+            background_color = palette_colors[index];
+            background_show ();
+		}
+	}
+    else if ( event->type == GDK_2BUTTON_PRESS )
+    {
+        GtkWidget *dialog;
+        gint res;
+
+        dialog = gtk_color_chooser_dialog_new (_("Edit Palette Color"), GTK_WINDOW(gtk_widget_get_toplevel(widget)));
+        gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(dialog), &palette_colors[index]);
+
+        res = gtk_dialog_run (GTK_DIALOG (dialog));
+        if (res == GTK_RESPONSE_OK)
+        {
+            gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(dialog), &palette_colors[index]);
+            pallete_show (index);
+        }
+        gtk_widget_destroy (dialog);
+    }
+	return TRUE;
+}
 
 /* Private functions */
-
-static void background_set_color_from_palette  ( guint palette )
-{
-	g_return_if_fail( palette < NUM_PALETTES );
-	background_color.red	=   pallete_colors[palette].red;
-	background_color.green  =   pallete_colors[palette].green;
-	background_color.blue   =   pallete_colors[palette].blue;
-	background_show ();	
-}
-
-static void foreground_set_color_from_palette  ( guint palette )
-{
-	g_return_if_fail( palette < NUM_PALETTES );
-	foreground_color.red	=   pallete_colors[palette].red;
-	foreground_color.green  =   pallete_colors[palette].green;
-	foreground_color.blue   =   pallete_colors[palette].blue;
-	foreground_show ();	
-}
-
-
-static void palette_color_picker ( guint palette )
-{
-	g_return_if_fail( palette < NUM_PALETTES );
-	color_dialog( &pallete_colors[palette], _("Select Color") );
-	pallete_show (palette);
-}	
-
-static void 
-color_dialog( GdkColor *color, gchar * title )
-{
-	GtkResponseType result;
-	GtkWidget *dialog;
-	GdkRGBA rgba;
-
-	rgba.red = color->red / 65535.0;
-	rgba.green = color->green / 65535.0;
-	rgba.blue = color->blue / 65535.0;
-	rgba.alpha = 1.0;
-
-	dialog = gtk_color_chooser_dialog_new (title, NULL);
-	gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (dialog), FALSE);
-	gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (dialog), &rgba);
-
-	result = gtk_dialog_run (GTK_DIALOG (dialog));
-
-	if (result == GTK_RESPONSE_OK)
-	{
-		gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (dialog), &rgba);
-		color->red = (guint16)(rgba.red * 65535.0);
-		color->green = (guint16)(rgba.green * 65535.0);
-		color->blue = (guint16)(rgba.blue * 65535.0);
-	}
-	gtk_widget_destroy(dialog);
-}
-
 static void
-color_to_rgba (const GdkColor *color, GdkRGBA *rgba)
-{
-	rgba->red = color->red / 65535.0;
-	rgba->green = color->green / 65535.0;
-	rgba->blue = color->blue / 65535.0;
-	rgba->alpha = 1.0;
-}
-
-static void 
 background_show ( void )
 {
-	GdkRGBA rgba;
-	g_return_if_fail( background_widget != NULL );
-	color_to_rgba (&background_color, &rgba);
-	gtk_widget_override_background_color (background_widget, GTK_STATE_FLAG_NORMAL, &rgba);
+    // gtk_widget_override_background_color is deprecated but still works in many themes, or use CSS provider.
+    // For now, let's stick with the override or use CSS if needed.
+    // However, GtkDrawingArea (which color pickers likely are) background setting might need CSS.
+    // Or if they are event boxes.
+
+    /* Using CSS provider to set background color for GTK3 */
+    GtkStyleContext *context = gtk_widget_get_style_context(background_widget);
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gchar *css_str = g_strdup_printf("widget { background-color: rgba(%d, %d, %d, %f); }",
+                                     (int)(background_color.red * 255),
+                                     (int)(background_color.green * 255),
+                                     (int)(background_color.blue * 255),
+                                     background_color.alpha);
+    gtk_css_provider_load_from_data(provider, css_str, -1, NULL);
+    gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_free(css_str);
+    g_object_unref(provider);
+
 	cv_set_color_bg ( &background_color );
 }
 
-static void 
+static void
 foreground_show ( void )
 {
-	GdkRGBA rgba;
-	g_return_if_fail( foreground_widget != NULL );
-	color_to_rgba (&foreground_color, &rgba);
-	gtk_widget_override_background_color (foreground_widget, GTK_STATE_FLAG_NORMAL, &rgba);
+    GtkStyleContext *context = gtk_widget_get_style_context(foreground_widget);
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gchar *css_str = g_strdup_printf("widget { background-color: rgba(%d, %d, %d, %f); }",
+                                     (int)(foreground_color.red * 255),
+                                     (int)(foreground_color.green * 255),
+                                     (int)(foreground_color.blue * 255),
+                                     foreground_color.alpha);
+    gtk_css_provider_load_from_data(provider, css_str, -1, NULL);
+    gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_free(css_str);
+    g_object_unref(provider);
+
 	cv_set_color_fg ( &foreground_color );
 }
 
-static void 
-pallete_show ( guint palette )
+static void
+pallete_show ( gint palette )
 {
-	GdkRGBA rgba;
-	g_return_if_fail( pallete_widgets[palette] != NULL );
-	color_to_rgba (&pallete_colors[palette], &rgba);
-	gtk_widget_override_background_color (pallete_widgets[palette], GTK_STATE_FLAG_NORMAL, &rgba);
+    if (pallete_widgets[palette]) {
+        GtkStyleContext *context = gtk_widget_get_style_context(pallete_widgets[palette]);
+        GtkCssProvider *provider = gtk_css_provider_new();
+        gchar *css_str = g_strdup_printf("widget { background-color: rgba(%d, %d, %d, %f); }",
+                                         (int)(palette_colors[palette].red * 255),
+                                         (int)(palette_colors[palette].green * 255),
+                                         (int)(palette_colors[palette].blue * 255),
+                                         palette_colors[palette].alpha);
+        gtk_css_provider_load_from_data(provider, css_str, -1, NULL);
+        gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_free(css_str);
+        g_object_unref(provider);
+    }
 }

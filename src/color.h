@@ -5,7 +5,7 @@
  * 
  * color.h is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  * 
  * color.h is distributed in the hope that it will be useful, but
@@ -17,9 +17,12 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __COLOR_H__
+#define __COLOR_H__
+
 #include <gtk/gtk.h>
 
-void foreground_set_color			( GdkColor *color );
+void foreground_set_color			( GdkRGBA *color );
 void foreground_set_color_from_rgb  ( guint color );
 
 /* GUI CallBack */
@@ -39,3 +42,4 @@ gboolean on_color_palette_entry_button_press_event			(   GtkWidget	   *widget,
 																GdkEventButton *event,
 			                                                   gpointer       user_data );
 
+#endif /* __COLOR_H__ */

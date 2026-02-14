@@ -48,13 +48,15 @@ typedef enum
 typedef struct
 {
 	GtkWidget *		toplevel;
-	GtkWidget *		widget;
-	GdkPixmap *		drawing;
-	GdkPixmap *		pixmap;
-	GdkGC *			gc_fg;
-	GdkGC *			gc_bg;
-	GdkGC *			gc_fg_pencil;
-	GdkGC *			gc_bg_pencil;
+	GtkWidget *		widget; /* The drawing area widget */
+
+    /* Replaces GdkPixmap *pixmap */
+    cairo_surface_t *	surface;
+
+    /* Replaces GCs */
+    GdkRGBA         color_fg;
+    GdkRGBA         color_bg;
+
 	gp_filled		filled;
 	gint			line_width;
 	gboolean		transparent;
@@ -67,7 +69,7 @@ typedef struct
 	gboolean	(*button_press)		( GdkEventButton *event );
 	gboolean	(*button_release)	( GdkEventButton *event );
 	gboolean	(*button_motion)	( GdkEventMotion *event );
-	void		(*draw)				( void );
+	void		(*draw)				( cairo_t *cr );
 	void		(*reset)			( void );
 	void		(*destroy)			( gpointer data );
 } gp_tool;

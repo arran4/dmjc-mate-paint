@@ -1,0 +1,1352 @@
+<?xml version="1.0" ?>
+<interface>
+  <requires lib="gtk+" version="3.0"/>
+  <object id="window" class="GtkWindow">
+    <property name="can_focus">False</property>
+    <property name="title">Mate Paint</property>
+    <property name="default_width">800</property>
+    <property name="default_height">600</property>
+    <signal name="destroy" handler="on_window_destroy"/>
+    <signal name="delete-event" handler="on_window_delete_event"/>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkMenuBar">
+            <property name="visible">True</property>
+            <child>
+              <object class="GtkMenuItem">
+                <property name="visible">True</property>
+                <property name="label">File</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu">
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-new</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_new_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-open</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_open_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-save</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_save_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-save-as</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_save_as_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-quit</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_window_destroy"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem">
+                <property name="visible">True</property>
+                <property name="label">Edit</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu">
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-undo</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_undo_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-redo</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_redo_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-copy</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_copy_activate"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-paste</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_paste_activate"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem">
+                <property name="visible">True</property>
+                <property name="label">Help</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu">
+                    <child>
+                      <object class="GtkImageMenuItem">
+                        <property name="visible">True</property>
+                        <property name="label">gtk-about</property>
+                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="on_menu_about_activate"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="toolbar1" class="GtkToolbar">
+            <property name="visible">True</property>
+            <property name="toolbar_style">icons</property>
+            <child>
+              <object id="tool-rect-select" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Select</property>
+                <property name="icon_name">edit-select-all</property>
+                <signal name="toggled" handler="on_tool_rect_select_toggled"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_eraser" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Eraser</property>
+                <property name="icon_name">draw-eraser</property>
+                <signal name="toggled" handler="on_tool_eraser_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_bucket_fill" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Fill</property>
+                <property name="icon_name">color-fill</property>
+                <signal name="toggled" handler="on_tool_bucket_fill_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_color_picker" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Pick Color</property>
+                <property name="icon_name">gtk-color-picker</property>
+                <signal name="toggled" handler="on_tool_color_picker_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_pencil" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Pencil</property>
+                <property name="icon_name">draw-freehand</property>
+                <signal name="toggled" handler="on_tool_pencil_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_paintbrush" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Brush</property>
+                <property name="icon_name">draw-brush</property>
+                <signal name="toggled" handler="on_tool_paintbrush_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_airbrush" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Airbrush</property>
+                <property name="icon_name">draw-airbrush</property>
+                <signal name="toggled" handler="on_tool_airbrush_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_line" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Line</property>
+                <property name="icon_name">draw-line</property>
+                <signal name="toggled" handler="on_draw_line_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_rectangle" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Rectangle</property>
+                <property name="icon_name">draw-rectangle</property>
+                <signal name="toggled" handler="on_draw_rectangle_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_ellipse" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Ellipse</property>
+                <property name="icon_name">draw-ellipse</property>
+                <signal name="toggled" handler="on_draw_ellipse_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_curve" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Curve</property>
+                <property name="icon_name">draw-curve</property>
+                <signal name="toggled" handler="on_draw_curve_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_polygon" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Polygon</property>
+                <property name="icon_name">draw-polygon</property>
+                <signal name="toggled" handler="on_draw_polygon_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="tool_rounded_rectangle" class="GtkRadioToolButton">
+                <property name="visible">True</property>
+                <property name="label">Rounded Rect</property>
+                <property name="icon_name">draw-rounded-rectangle</property>
+                <signal name="toggled" handler="on_draw_rounded_rectangle_toggled"/>
+                <property name="group">tool-rect-select</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="visible">True</property>
+            <child>
+              <object id="notebook" class="GtkNotebook">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="show_tabs">False</property>
+                <property name="show_border">False</property>
+                <signal name="realize" handler="on_notebook_realize"/>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">horizontal</property>
+                        <property name="visible">True</property>
+                        <child>
+                          <object id="sel1" class="GtkRadioToolButton">
+                            <property name="visible">True</property>
+                            <property name="label">Opaque</property>
+                            <property name="icon_name">image-missing</property>
+                            <signal name="toggled" handler="on_sel1_toggled"/>
+                            <signal name="realize" handler="on_sel1_realize"/>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="sel2" class="GtkRadioToolButton">
+                            <property name="visible">True</property>
+                            <property name="label">Transparent</property>
+                            <property name="group">sel1</property>
+                            <property name="icon_name">image-missing</property>
+                            <signal name="toggled" handler="on_sel2_toggled"/>
+                            <signal name="realize" handler="on_sel2_realize"/>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="visible">True</property>
+                    <child>
+                      <object id="frame_rect" class="GtkFrame">
+                        <property name="visible">True</property>
+                        <property name="label">Options</property>
+                        <signal name="realize" handler="on_frame_rect_realize"/>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="visible">True</property>
+                            <child>
+                              <object id="line0" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">1px</property>
+                                <signal name="toggled" handler="on_line0_toggled"/>
+                                <signal name="realize" handler="on_line0_realize"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="line1" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">2px</property>
+                                <signal name="toggled" handler="on_line1_toggled"/>
+                                <signal name="realize" handler="on_line1_realize"/>
+                                <property name="group">line0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="line2" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">3px</property>
+                                <signal name="toggled" handler="on_line2_toggled"/>
+                                <signal name="realize" handler="on_line2_realize"/>
+                                <property name="group">line0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="line3" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">4px</property>
+                                <signal name="toggled" handler="on_line3_toggled"/>
+                                <signal name="realize" handler="on_line3_realize"/>
+                                <property name="group">line0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="line4" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">5px</property>
+                                <signal name="toggled" handler="on_line4_toggled"/>
+                                <signal name="realize" handler="on_line4_realize"/>
+                                <property name="group">line0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="rect0" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">Fill 0</property>
+                                <signal name="toggled" handler="on_rect0_toggled"/>
+                                <signal name="realize" handler="on_rect0_realize"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="rect1" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">Fill 1</property>
+                                <signal name="toggled" handler="on_rect1_toggled"/>
+                                <signal name="realize" handler="on_rect1_realize"/>
+                                <property name="group">rect0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object id="rect2" class="GtkRadioButton">
+                                <property name="visible">True</property>
+                                <property name="label">Fill 2</property>
+                                <signal name="toggled" handler="on_rect2_toggled"/>
+                                <signal name="realize" handler="on_rect2_realize"/>
+                                <property name="group">rect0</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                              </packing>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="visible">True</property>
+                    <child>
+                      <object id="erase0" class="GtkRadioButton">
+                        <property name="visible">True</property>
+                        <property name="label">Size 0</property>
+                        <signal name="realize" handler="on_erase0_realize"/>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="erase1" class="GtkRadioButton">
+                        <property name="visible">True</property>
+                        <property name="label">Size 1</property>
+                        <signal name="realize" handler="on_erase1_realize"/>
+                        <property name="group">erase0</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="erase2" class="GtkRadioButton">
+                        <property name="visible">True</property>
+                        <property name="label">Size 2</property>
+                        <signal name="realize" handler="on_erase2_realize"/>
+                        <property name="group">erase0</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="erase3" class="GtkRadioButton">
+                        <property name="visible">True</property>
+                        <property name="label">Size 3</property>
+                        <signal name="realize" handler="on_erase3_realize"/>
+                        <property name="group">erase0</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="label">Zoom</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkGrid">
+                        <property name="visible">True</property>
+                        <property name="row_spacing">2</property>
+                        <property name="column_spacing">2</property>
+                        <child>
+                          <object id="brush0" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B0</property>
+                            <signal name="realize" handler="on_brush0_realize"/>
+                          </object>
+                          <packing>
+                            <property name="left_attach">0</property>
+                            <property name="top_attach">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush1" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B1</property>
+                            <signal name="realize" handler="on_brush1_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">1</property>
+                            <property name="top_attach">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush2" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B2</property>
+                            <signal name="realize" handler="on_brush2_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">2</property>
+                            <property name="top_attach">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush3" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B3</property>
+                            <signal name="realize" handler="on_brush3_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">0</property>
+                            <property name="top_attach">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush4" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B4</property>
+                            <signal name="realize" handler="on_brush4_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">1</property>
+                            <property name="top_attach">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush5" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B5</property>
+                            <signal name="realize" handler="on_brush5_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">2</property>
+                            <property name="top_attach">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush6" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B6</property>
+                            <signal name="realize" handler="on_brush6_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">0</property>
+                            <property name="top_attach">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush7" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B7</property>
+                            <signal name="realize" handler="on_brush7_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">1</property>
+                            <property name="top_attach">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush8" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B8</property>
+                            <signal name="realize" handler="on_brush8_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">2</property>
+                            <property name="top_attach">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush9" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B9</property>
+                            <signal name="realize" handler="on_brush9_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">0</property>
+                            <property name="top_attach">3</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush10" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B10</property>
+                            <signal name="realize" handler="on_brush10_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">1</property>
+                            <property name="top_attach">3</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object id="brush11" class="GtkRadioButton">
+                            <property name="visible">True</property>
+                            <property name="label">B11</property>
+                            <signal name="realize" handler="on_brush11_realize"/>
+                            <property name="group">brush0</property>
+                          </object>
+                          <packing>
+                            <property name="left_attach">2</property>
+                            <property name="top_attach">3</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                      </packing>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="label">Spray</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="visible">True</property>
+                <child>
+                  <object id="foreground_color_picker" class="GtkDrawingArea">
+                    <property name="visible">True</property>
+                    <property name="width_request">30</property>
+                    <property name="height_request">30</property>
+                    <signal name="realize" handler="on_foreground_color_picker_realize"/>
+                    <signal name="button-release-event" handler="on_foreground_color_picker_button_release_event"/>
+                    <property name="events">GDK_BUTTON_RELEASE_MASK</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                  </packing>
+                </child>
+                <child>
+                  <object id="background_color_picker" class="GtkDrawingArea">
+                    <property name="visible">True</property>
+                    <property name="width_request">30</property>
+                    <property name="height_request">30</property>
+                    <signal name="realize" handler="on_background_color_picker_realize"/>
+                    <signal name="button-release-event" handler="on_background_color_picker_button_release_event"/>
+                    <property name="events">GDK_BUTTON_RELEASE_MASK</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkGrid">
+                    <property name="visible">True</property>
+                    <child>
+                      <object id="color_palette_entry_0" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_1" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_2" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">1</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_3" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">1</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_4" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">2</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_5" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">2</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_6" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">3</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_7" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">3</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_8" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">4</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_9" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">4</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_10" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">5</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_11" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">5</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_12" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">6</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_13" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">6</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_14" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">7</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_15" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">7</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_16" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">8</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_17" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">8</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_18" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">9</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_19" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">9</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_20" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">10</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_21" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">10</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_22" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">11</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_23" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">11</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_24" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">12</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_25" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">12</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_26" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">13</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object id="color_palette_entry_27" class="GtkDrawingArea">
+                        <property name="visible">True</property>
+                        <property name="width_request">15</property>
+                        <property name="height_request">15</property>
+                        <signal name="realize" handler="on_color_palette_entry_realize"/>
+                        <signal name="button-press-event" handler="on_color_palette_entry_button_press_event"/>
+                        <property name="events">GDK_BUTTON_PRESS_MASK</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">13</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="visible">True</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <object id="cv_drawing" class="GtkDrawingArea">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="events">GDK_EXPOSURE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_MOTION_MASK | GDK_BUTTON1_MOTION_MASK | GDK_BUTTON2_MOTION_MASK | GDK_BUTTON3_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK | GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK | GDK_FOCUS_CHANGE_MASK | GDK_STRUCTURE_MASK | GDK_PROPERTY_CHANGE_MASK | GDK_VISIBILITY_NOTIFY_MASK | GDK_PROXIMITY_IN_MASK | GDK_PROXIMITY_OUT_MASK | GDK_SUBSTRUCTURE_MASK | GDK_SCROLL_MASK | GDK_TOUCH_MASK | GDK_SMOOTH_SCROLL_MASK | GDK_TOUCHPAD_GESTURE_MASK | GDK_TABLET_PAD_MASK</property>
+                    <signal name="draw" handler="on_cv_drawing_draw"/>
+                    <signal name="button-press-event" handler="on_cv_drawing_button_press_event"/>
+                    <signal name="button-release-event" handler="on_cv_drawing_button_release_event"/>
+                    <signal name="motion-notify-event" handler="on_cv_drawing_motion_notify_event"/>
+                    <signal name="leave-notify-event" handler="on_cv_drawing_leave_notify_event"/>
+                    <signal name="realize" handler="on_cv_drawing_realize"/>
+                    <signal name="unrealize" handler="on_cv_drawing_unrealize"/>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="visible">True</property>
+            <child>
+              <object id="lb_pos" class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">0,0</property>
+                <signal name="realize" handler="on_lb_pos_realize"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="lb_size" class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">320x200</property>
+                <signal name="realize" handler="on_lb_size_realize"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+              </packing>
+            </child>
+            <child>
+              <object id="cv_ev_box" class="GtkEventBox">
+                <property name="visible">True</property>
+                <signal name="realize" handler="on_cv_ev_box_realize"/>
+                <signal name="draw" handler="on_cv_ev_box_draw"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object id="flip_roate_dialog" class="GtkDialog">
+    <property name="title">Flip/Rotate</property>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object id="radiobutton_rotate" class="GtkRadioButton">
+            <property name="label">Rotate</property>
+            <signal name="toggled" handler="on_radiobutton_rotate_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="radiobutton_rotate_90" class="GtkRadioButton">
+            <property name="label">90</property>
+            <property name="group">radiobutton_rotate</property>
+            <signal name="toggled" handler="on_radiobutton_rotate_90_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="radiobutton_rotate_180" class="GtkRadioButton">
+            <property name="label">180</property>
+            <property name="group">radiobutton_rotate</property>
+            <signal name="toggled" handler="on_radiobutton_rotate_180_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="radiobutton_rotate_270" class="GtkRadioButton">
+            <property name="label">270</property>
+            <property name="group">radiobutton_rotate</property>
+            <signal name="toggled" handler="on_radiobutton_rotate_270_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object id="dialog_attributes" class="GtkDialog">
+    <property name="title">Attributes</property>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object id="attributes_entry1" class="GtkEntry"/>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="attributes_entry2" class="GtkEntry"/>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="attributes_radiobutton1" class="GtkRadioButton">
+            <property name="label">Inches</property>
+            <signal name="toggled" handler="on_attributes_radiobutton1_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="attributes_radiobutton2" class="GtkRadioButton">
+            <property name="label">cm</property>
+            <property name="group">attributes_radiobutton1</property>
+            <signal name="toggled" handler="on_attributes_radiobutton2_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="attributes_radiobutton3" class="GtkRadioButton">
+            <property name="label">pixels</property>
+            <property name="group">attributes_radiobutton1</property>
+            <signal name="toggled" handler="on_attributes_radiobutton3_toggled"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+        <child>
+          <object id="attributes_label6" class="GtkLabel"/>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -29,8 +29,8 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
 
-void		cv_set_color_bg			( GdkColor *color );
-void		cv_set_color_fg			( GdkColor *color );
+void		cv_set_color_bg			( GdkRGBA *color );
+void		cv_set_color_fg			( GdkRGBA *color );
 void		cv_set_line_width		( gint width );
 void		cv_set_filled			( gp_filled filled );
 void        cv_set_tool             ( gp_tool_enum tool );
@@ -62,6 +62,11 @@ gboolean on_cv_drawing_button_release_event			(GtkWidget	   *widget,
 gboolean on_cv_drawing_motion_notify_event 			(GtkWidget      *widget,
 		                                         GdkEventMotion *event,
                                                  gpointer        user_data);
-gboolean on_cv_drawing_expose_event                 (GtkWidget    *widget,
+
+/* GTK3 Draw signal */
+gboolean on_cv_drawing_draw                 (GtkWidget    *widget,
                                                  cairo_t        *cr,
                                                  gpointer       user_data );
+
+/* Compatibility alias if UI file uses the old name */
+#define on_cv_drawing_expose_event on_cv_drawing_draw
