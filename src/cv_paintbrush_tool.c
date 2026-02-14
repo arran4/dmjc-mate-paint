@@ -89,7 +89,6 @@ static GdkCursor *create_brush_cursor(GPBrushType type);
 static void set_brush_values(GPBrushType type, GPBrushSize size);
 static void set_brush_size(GPBrushSize size);
 static GdkGC *color_for_alphaing(GtkWidget *widget, GdkGC *fg, GdkGC *bg);
-static void brush_set_pixel(GdkPixbuf *pixbuf, gint color, gint x, gint y);
 static void draw_crosshair(GdkPixbuf *pixbuf, GPBrushType type);
 
 /* Private drawing functions */
@@ -808,9 +807,30 @@ static GdkGC *color_for_alphaing(GtkWidget *widget, GdkGC *fg, GdkGC *bg)
 }
 
 /* This func should go in another module */
+#define getr(x) ((((x)>>(16))&(0x0FF)))
+#define getg(x) ((((x)>>(8))&(0x0FF)))
+#define getb(x) (((x)&(0x0FF)))
+
+static inline void
+brush_set_pixel(guchar *pixels, int width, int height, int rowstride, int n_channels, gint color, gint x, gint y)
+{
+	if((x >= 0) && (x < width))
+	{
+		if((y >= 0) && (y < height))
+		{
+			guchar *p = pixels + (y * rowstride + x * n_channels);
+			p[0] = getr(color);/*red*/
+			p[1] = getg(color);/*green*/
+			p[2] = getb(color);/*blue*/
+			p[3] = 0xFF;
+		}
+	}
+}
+
 static void draw_crosshair(GdkPixbuf *pixbuf, GPBrushType type)
 {
 	int width, height, rowstride, n_channels;
+	guchar *pixels;
 	guint color = 0x00000000;
 
 	/* Ignore pixbuf brushes */
@@ -824,6 +844,8 @@ static void draw_crosshair(GdkPixbuf *pixbuf, GPBrushType type)
 
 	width = gdk_pixbuf_get_width (pixbuf);
 	height = gdk_pixbuf_get_height (pixbuf);
+	rowstride = gdk_pixbuf_get_rowstride (pixbuf);
+	pixels = gdk_pixbuf_get_pixels (pixbuf);
 
 	{
 		int j, i, npix = 19;
@@ -833,39 +855,11 @@ static void draw_crosshair(GdkPixbuf *pixbuf, GPBrushType type)
 		color = 0;
 
 		for(i = center - npix / 2, j = npix - 1; i < 8; i++, j--){
-			brush_set_pixel(pixbuf, color, center, i);
-			brush_set_pixel(pixbuf, color, center, j);
-			brush_set_pixel(pixbuf, color, i, center);
-			brush_set_pixel(pixbuf, color, j, center);
+			brush_set_pixel(pixels, width, height, rowstride, n_channels, color, center, i);
+			brush_set_pixel(pixels, width, height, rowstride, n_channels, color, center, j);
+			brush_set_pixel(pixels, width, height, rowstride, n_channels, color, i, center);
+			brush_set_pixel(pixels, width, height, rowstride, n_channels, color, j, center);
 			color = ~color;
 		}
 	}
-}
-
-/* This func should go in another module */
-#define getr(x) ((((x)>>(16))&(0x0FF)))
-#define getg(x) ((((x)>>(8))&(0x0FF)))
-#define getb(x) (((x)&(0x0FF)))
-static void brush_set_pixel(GdkPixbuf *pixbuf, gint color, gint x, gint y)
-{
-	guchar *pixels, *p;
-	int width, height, rowstride, n_channels;
-
-	n_channels = gdk_pixbuf_get_n_channels (pixbuf);
-	width = gdk_pixbuf_get_width (pixbuf);
-	height = gdk_pixbuf_get_height (pixbuf);
-	rowstride = gdk_pixbuf_get_rowstride (pixbuf);
-	pixels = gdk_pixbuf_get_pixels (pixbuf);
-	
-	if((x >= 0) && (x <= width))
-	{
-		if((y >= 0) && (y <= height))
-		{
-			p = pixels + (y * rowstride + x * n_channels);
-			p[0] = getr(color);/*red*/
-			p[1] = getg(color);/*green*/
-			p[2] = getb(color);/*blue*/
-			p[3] = 0xFF;
-		}
-	}	
 }
