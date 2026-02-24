@@ -1394,27 +1394,54 @@ void flood_fill_at(int start_x, int start_y) {
 
     unsigned char* data = cairo_image_surface_get_data(app_state.surface);
     int stride = cairo_image_surface_get_stride(app_state.surface);
+    int width = app_state.canvas_width;
+    int height = app_state.canvas_height;
 
-    std::queue<std::pair<int, int>> pixels;
-    pixels.push({start_x, start_y});
+    std::vector<std::pair<int, int>> pixels;
+    pixels.push_back({start_x, start_y});
 
     while (!pixels.empty()) {
-        std::pair<int, int> current = pixels.front();
-        pixels.pop();
+        std::pair<int, int> current = pixels.back();
+        pixels.pop_back();
 
         int x = current.first;
         int y = current.second;
 
-        if (!point_in_canvas(x, y)) continue;
-
         guint32* row = reinterpret_cast<guint32*>(data + y * stride);
         if (row[x] != target) continue;
 
-        row[x] = replacement;
-        pixels.push({x - 1, y});
-        pixels.push({x + 1, y});
-        pixels.push({x, y - 1});
-        pixels.push({x, y + 1});
+        // Find left boundary of the span
+        int lx = x;
+        while (lx >= 0 && row[lx] == target) {
+            row[lx] = replacement;
+            lx--;
+        }
+
+        // Find right boundary of the span
+        int rx = x + 1;
+        while (rx < width && row[rx] == target) {
+            row[rx] = replacement;
+            rx++;
+        }
+
+        // Scan the lines above and below for new spans
+        auto scan_line = [&](int ly, int l, int r) {
+            guint32* scan_row = reinterpret_cast<guint32*>(data + ly * stride);
+            bool in_span = false;
+            for (int i = l + 1; i < r; i++) {
+                if (scan_row[i] == target) {
+                    if (!in_span) {
+                        pixels.push_back({i, ly});
+                        in_span = true;
+                    }
+                } else {
+                    in_span = false;
+                }
+            }
+        };
+
+        if (y > 0) scan_line(y - 1, lx, rx);
+        if (y < height - 1) scan_line(y + 1, lx, rx);
     }
 
     cairo_surface_mark_dirty(app_state.surface);
