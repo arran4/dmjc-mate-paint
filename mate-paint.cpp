@@ -3219,9 +3219,12 @@ void on_image_flip_vertical(GtkMenuItem* item, gpointer data) {
 void on_help_manual(GtkMenuItem* item, gpointer data) {
     // Use help URI instead of filesystem path
     const char* uri = "help:mate-paint/contents";
-    gchar* command = g_strdup_printf("yelp %s &", uri);
-    std::system(command);
-    g_free(command);
+    GError* error = NULL;
+    if (!gtk_show_uri_on_window(GTK_WINDOW(app_state.window), uri, gtk_get_current_event_time(), &error)) {
+        if (error) {
+            g_error_free(error);
+        }
+    }
 }
 
 void on_help_about(GtkMenuItem* item, gpointer data) {
