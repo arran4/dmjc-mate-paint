@@ -12,6 +12,7 @@
 #include <cctype>
 #include <queue>
 #include <cstdio>
+#include "math_utils.hpp"
 
 const double line_thickness_options[] = {1.0, 2.0, 4.0, 6.0, 8.0};
 const double zoom_options[] = {1.0, 2.0, 4.0, 6.0, 8.0};
@@ -325,9 +326,6 @@ double to_canvas_coordinate(double coordinate) {
     return coordinate / app_state.zoom_factor;
 }
 
-double clamp_double(double value, double min_value, double max_value) {
-    return fmax(min_value, fmin(value, max_value));
-}
 
 void configure_crisp_rendering(cairo_t* cr) {
     cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
@@ -1339,9 +1337,6 @@ bool point_in_canvas(int x, int y) {
     return x >= 0 && x < app_state.canvas_width && y >= 0 && y < app_state.canvas_height;
 }
 
-double clamp_color_channel(double channel) {
-    return fmax(0.0, fmin(1.0, channel));
-}
 
 guint32 rgba_to_pixel(const GdkRGBA& color) {
     guint8 r = static_cast<guint8>(std::round(clamp_color_channel(color.red) * 255.0));

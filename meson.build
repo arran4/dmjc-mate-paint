@@ -14,6 +14,7 @@ icon_install_dir = join_paths(get_option('prefix'), get_option('datadir'), meson
 
 executable('mate-paint',
   'mate-paint.cpp',
+  'math_utils.cpp',
   dependencies: gtk_dep,
   cpp_args: [
     '-DICON_INSTALL_DIR="' + icon_install_dir + '"',
@@ -34,3 +35,9 @@ install_subdir('help',
 )
 
 subdir('po')
+
+test_math_utils = executable('test_math_utils',
+  'tests/test_math_utils.cpp',
+  'math_utils.cpp',
+)
+test('math_utils_test', test_math_utils)
